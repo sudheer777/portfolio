@@ -1,0 +1,58 @@
+package models
+
+import (
+	"time"
+)
+
+type User struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"-"` // Never send password in JSON
+}
+
+type Transaction struct {
+	ID              int64     `json:"id"`
+	TransactionType string    `json:"transaction_type"`
+	AssetType       string    `json:"asset_type"` // e.g., debt, equity, gold, real_estate
+	FDType          string    `json:"fd_type"`
+	Amount          float64   `json:"amount"`
+	Date            time.Time `json:"date"`
+	UserID          int64     `json:"user_id"`
+	CustomerName    string    `json:"customer_name"` // For multi-customer support under one user
+}
+
+type InterestRate struct {
+	ID     int64     `json:"id"`
+	FDType string    `json:"fd_type"`
+	Date   time.Time `json:"date"`
+	Rate   float64   `json:"rate"`
+}
+
+type Amount struct {
+	Principal   float64 `json:"principal"`
+	Interest    float64 `json:"interest"`
+	DayChange   float64 `json:"day_change"`
+	FinalAmount float64 `json:"final_amount"`
+}
+
+type PortfolioSummary struct {
+	UserSummaries []UserSummary     `json:"user_summaries"`
+	Total         Amount            `json:"total"`
+	AssetTypes    map[string]Amount `json:"asset_types"`
+}
+
+type UserSummary struct {
+	UserName   string            `json:"user_name"`
+	UserID     int64             `json:"user_id"`
+	FDS        map[string]Amount `json:"fds"`
+	AssetTypes map[string]Amount `json:"asset_types"`
+	Total      Amount            `json:"total"`
+}
+
+type PortfolioHistory struct {
+	ID          int64     `json:"id"`
+	Date        time.Time `json:"date"`
+	TotalAmount float64   `json:"total_amount"`
+	UserID      int64     `json:"user_id"`
+}
