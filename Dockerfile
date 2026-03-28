@@ -9,7 +9,7 @@ COPY go_app/frontend/ ./
 RUN npm run build
 
 # Stage 2: Build the Go backend
-FROM golang:1.23-alpine AS build-backend
+FROM golang:1.25-alpine AS build-backend
 WORKDIR /app
 
 # Install build dependencies for CGO (sqlite3 requires CGO)
