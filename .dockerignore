@@ -1,0 +1,28 @@
+.git
+node_modules
+dist
+build
+.env
+.DS_Store
+
+# Go specific
+server
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go_app/server
+
+# Node specific
+go_app/frontend/node_modules
+go_app/frontend/dist
+
+# DB files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
