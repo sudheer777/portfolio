@@ -57,8 +57,13 @@ func main() {
 
 	// Serve Frontend Static SPA
 	r.Static("/assets", "./frontend/dist/assets")
-	r.StaticFile("/vite.svg", "./frontend/dist/vite.svg")
 	r.NoRoute(func(c *gin.Context) {
+		path := c.Request.URL.Path
+		filePath := "./frontend/dist" + path
+		if _, err := os.Stat(filePath); err == nil {
+			c.File(filePath)
+			return
+		}
 		c.File("./frontend/dist/index.html")
 	})
 
