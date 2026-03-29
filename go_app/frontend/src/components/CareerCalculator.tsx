@@ -110,6 +110,10 @@ export default function CareerCalculator() {
     const monthlyBase = currentCtcVal / 24; // Base is 50% of CTC
     const dailyBase = monthlyBase / 30;
 
+    // Tax Math for current CTC
+    const taxData = calculateTaxesNewRegime(currentCtcVal);
+    const dailyInHand = taxData.monthlyInHand / 30;
+
     let yearsOfService = 0;
     if (jobDetails) {
         const joinDt = new Date(jobDetails.joining_date);
@@ -119,6 +123,14 @@ export default function CareerCalculator() {
 
     const currentGratuity = yearsOfService >= 4.8 ? Math.round(monthlyBase * (15 / 26) * Math.round(yearsOfService)) : 0;
     const currentLeaveEncashment = dailyBase * (parseFloat(accruedLeaves) || 0);
+
+    // Calculate In-Hand values by deducing marginal tax impact at current CTC
+    const taxWithLeave = calculateTaxesNewRegime(currentCtcVal + currentLeaveEncashment).totalTax;
+    const inHandLeaveEncashment = currentLeaveEncashment - (taxWithLeave - taxData.totalTax);
+
+    const taxableGratuity = Math.max(0, currentGratuity - 2000000); // Exclude first 20 Lakhs
+    const taxWithGrat = calculateTaxesNewRegime(currentCtcVal + taxableGratuity).totalTax;
+    const inHandGratuity = currentGratuity - (taxWithGrat - taxData.totalTax);
 
     // Projections
     const hikeRate = (parseFloat(expectedHike) || 0) / 100;
@@ -155,10 +167,6 @@ export default function CareerCalculator() {
     const lastActCtc = history.length > 0 ? history[history.length - 1].ctc : currentCtcVal;
     const lastDate = history.length > 0 ? new Date(history[history.length - 1].date) : new Date();
 
-    // Tax Math
-    const taxData = calculateTaxesNewRegime(currentCtcVal);
-    const dailyInHand = taxData.monthlyInHand / 30;
-
     // Create simulated future
     let simCtc = lastActCtc || currentCtcVal;
     let simYos = yearsOfService;
@@ -177,6 +185,13 @@ export default function CareerCalculator() {
         const simGrat = simYos >= 4.8 ? Math.round(simMonBase * (15 / 26) * Math.round(simYos)) : 0;
         const simLeave = simDaily * (parseFloat(accruedLeaves) || 0);
 
+        const simTaxWithLeave = calculateTaxesNewRegime(simCtc + simLeave).totalTax;
+        const simInHandLeave = simLeave - (simTaxWithLeave - simTaxData.totalTax);
+
+        const simTaxableGrat = Math.max(0, simGrat - 2000000);
+        const simTaxWithGrat = calculateTaxesNewRegime(simCtc + simTaxableGrat).totalTax;
+        const simInHandGrat = simGrat - (simTaxWithGrat - simTaxData.totalTax);
+
         projectionData.push({
             year: `+${i} Year`,
             ctc: simCtc,
@@ -184,7 +199,9 @@ export default function CareerCalculator() {
             tax: simTaxData.totalTax,         // Per year
             epf: simTaxData.epf,              // Per year
             gratuity: simGrat,
-            leave: simLeave
+            inHandGratuity: simInHandGrat,
+            leave: simLeave,
+            inHandLeave: simInHandLeave
         });
 
         chartData.push({
@@ -262,25 +279,52 @@ export default function CareerCalculator() {
                         />
                     </div>
                     {parseFloat(quickCtc) > 0 && (
-                        <div className="w-full md:w-2/3 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="w-full md:w-2/3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             {(() => {
-                                const sim = calculateTaxesNewRegime(parseFloat(quickCtc));
+                                const ctcVal = parseFloat(quickCtc);
+                                const sim = calculateTaxesNewRegime(ctcVal);
+
+                                // Base metrics
+                                const monthlyBase = ctcVal / 24;
+                                const dailyBase = monthlyBase / 30;
+
+                                // 5 Years Service assumed for Gratuity eligibility in sandbox
+                                const currentGratuity = Math.round(monthlyBase * (15 / 26) * 5);
+                                const taxableGratuity = Math.max(0, currentGratuity - 2000000);
+                                const taxWithGrat = calculateTaxesNewRegime(ctcVal + taxableGratuity).totalTax;
+                                const inHandGrat = currentGratuity - (taxWithGrat - sim.totalTax);
+
+                                // 20 Days Leave assumed
+                                const currentLeave = dailyBase * 20;
+                                const taxWithLeave = calculateTaxesNewRegime(ctcVal + currentLeave).totalTax;
+                                const inHandLeave = currentLeave - (taxWithLeave - sim.totalTax);
+
                                 return (
                                     <>
                                         <div className="p-3 bg-orange-50 rounded border border-orange-100 shadow-sm flex flex-col justify-center">
-                                            <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">In-Hand Salary</p>
-                                            <p className="font-bold text-orange-700 text-lg">{formatCurrency(sim.monthlyInHand)}<span className="text-xs font-normal text-gray-500"> /mo</span></p>
-                                            <p className="text-xs text-gray-500 mt-0.5">{formatCurrency(sim.monthlyInHand * 12)} /yr</p>
+                                            <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-1">In-Hand Salary</p>
+                                            <p className="font-bold text-orange-700 text-lg">{formatCurrency(sim.monthlyInHand)}<span className="text-[10px] font-normal text-gray-500"> /mo</span></p>
+                                            <p className="text-[10px] text-gray-500 mt-0.5">{formatCurrency(sim.monthlyInHand * 12)} /yr</p>
                                         </div>
                                         <div className="p-3 bg-red-50 rounded border border-red-100 shadow-sm flex flex-col justify-center">
-                                            <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Yearly Income Tax</p>
+                                            <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-1">Yearly Income Tax</p>
                                             <p className="font-bold text-red-700 text-lg">{formatCurrency(sim.totalTax)}</p>
-                                            <p className="text-xs text-gray-500 mt-0.5">Under New Regime</p>
+                                            <p className="text-[10px] text-gray-500 mt-0.5">Under New Regime</p>
                                         </div>
                                         <div className="p-3 bg-teal-50 rounded border border-teal-100 shadow-sm flex flex-col justify-center">
-                                            <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Yearly EPF (Total)</p>
+                                            <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-1">Yearly EPF (Total)</p>
                                             <p className="font-bold text-teal-700 text-lg">{formatCurrency(sim.epf)}</p>
-                                            <p className="text-xs text-gray-500 mt-0.5">{formatCurrency(sim.epf / 12)} /mo matched</p>
+                                            <p className="text-[10px] text-gray-500 mt-0.5">{formatCurrency(sim.epf / 12)} /mo matched</p>
+                                        </div>
+                                        <div className="p-3 bg-green-50 rounded border border-green-100 shadow-sm flex flex-col justify-center">
+                                            <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-1">In-Hand Gratuity (5 Yrs)</p>
+                                            <p className="font-bold text-green-700 text-lg">{formatCurrency(inHandGrat)}</p>
+                                            <p className="text-[10px] text-gray-500 mt-0.5">Gross: {formatCurrency(currentGratuity)}</p>
+                                        </div>
+                                        <div className="p-3 bg-blue-50 rounded border border-blue-100 shadow-sm flex flex-col justify-center">
+                                            <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-1">In-Hand Leave (20 Days)</p>
+                                            <p className="font-bold text-blue-700 text-lg">{formatCurrency(inHandLeave)}</p>
+                                            <p className="text-[10px] text-gray-500 mt-0.5">Gross: {formatCurrency(currentLeave)}</p>
                                         </div>
                                     </>
                                 );
@@ -304,8 +348,9 @@ export default function CareerCalculator() {
                                 <div className="p-4 bg-green-50 rounded shadow-inner border border-green-100">
                                     <div className="flex justify-between items-center">
                                         <div>
-                                            <p className="text-gray-600 text-sm">Estimated Gratuity {!currentGratuity && '(Eligible after 5 yrs)'}</p>
-                                            <p className="text-2xl font-bold text-green-700">{formatCurrency(currentGratuity)}</p>
+                                            <p className="text-gray-600 text-sm">In-Hand Gratuity {!currentGratuity && '(Eligible after 5 yrs)'}</p>
+                                            <p className="text-2xl font-bold text-green-700">{formatCurrency(inHandGratuity)}</p>
+                                            <p className="text-xs text-gray-500 mt-1">Gross: {formatCurrency(currentGratuity)} | Tax Marginal Diff: {formatCurrency(currentGratuity - inHandGratuity)}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-xs text-gray-500">Years of Service</p>
@@ -327,13 +372,13 @@ export default function CareerCalculator() {
                                 <FICrossoverCard expectedHike={parseFloat(expectedHike) || 0} />
 
                                 <div className="p-4 bg-blue-50 rounded shadow-inner border border-blue-100">
-                                    <p className="text-gray-600 text-sm mb-2">Leave Encashment Simulator</p>
+                                    <p className="text-gray-600 text-sm mb-2">In-Hand Leave Encashment Simulator</p>
                                     <div className="flex space-x-2 items-center mb-2">
                                         <input type="number" value={accruedLeaves} onChange={(e) => setAccruedLeaves(e.target.value)} className="w-20 p-1 border rounded" />
                                         <span className="text-sm">Days Accrued</span>
                                     </div>
-                                    <p className="text-2xl font-bold text-blue-700">{formatCurrency(currentLeaveEncashment)}</p>
-                                    <p className="text-xs text-gray-500 mt-1">Per day wage: {formatCurrency(dailyBase)}</p>
+                                    <p className="text-2xl font-bold text-blue-700">{formatCurrency(inHandLeaveEncashment)}</p>
+                                    <p className="text-xs text-gray-500 mt-1">Gross: {formatCurrency(currentLeaveEncashment)} | Tax Marginal Diff: {formatCurrency(currentLeaveEncashment - inHandLeaveEncashment)}</p>
                                 </div>
                             </div>
                         </div>
@@ -374,8 +419,14 @@ export default function CareerCalculator() {
                                                 <td className="p-2 text-orange-600 font-medium">{formatCurrency(pd.inHand)}</td>
                                                 <td className="p-2 text-red-600">{formatCurrency(pd.tax)}</td>
                                                 <td className="p-2 text-teal-600">{formatCurrency(pd.epf)}</td>
-                                                <td className="p-2 font-medium text-green-600">{formatCurrency(pd.gratuity)}</td>
-                                                <td className="p-2 font-medium text-blue-600">{formatCurrency(pd.leave)}</td>
+                                                <td className="p-2 font-medium text-green-600">
+                                                    {formatCurrency(pd.inHandGratuity)}
+                                                    <div className="text-[10px] text-gray-400 font-normal mt-0.5">Gross: {formatCurrency(pd.gratuity)}</div>
+                                                </td>
+                                                <td className="p-2 font-medium text-blue-600">
+                                                    {formatCurrency(pd.inHandLeave)}
+                                                    <div className="text-[10px] text-gray-400 font-normal mt-0.5">Gross: {formatCurrency(pd.leave)}</div>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
