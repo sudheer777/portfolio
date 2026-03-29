@@ -9,6 +9,7 @@ import { api } from './api';
 import PPFCalculator from './components/PPFCalculator';
 import { AssetRebalancer } from './components/AssetRebalancer';
 import CareerCalculator from './components/CareerCalculator';
+import { ReloadPrompt } from './components/ReloadPrompt';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -158,6 +159,7 @@ function App() {
           )}
         </main>
       </div>
+      <ReloadPrompt />
     </div>
   );
 }
