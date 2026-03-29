@@ -6,6 +6,7 @@ import { AssetAllocationCharts } from "./AssetAllocationCharts";
 import { HistoryChart } from "./HistoryChart";
 import { HistoryList } from "./HistoryList";
 import { HistoryAnalysis, type Milestone } from "./HistoryAnalysis";
+import { FICrossoverCard } from "./FICrossoverCard";
 import type { PortfolioSummary, UserSummary, Amount } from "../types";
 
 export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () => void }> = ({ refreshKey, onTransactionChange }) => {
@@ -173,6 +174,10 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
                     pastMilestones={pastMilestones}
                     pastUSDMilestones={pastUSDMilestones}
                 />}
+
+                <div className="mt-8">
+                    <FICrossoverCard />
+                </div>
 
                 <div className="mt-8 border-t border-indigo-200 pt-6 space-y-8">
                     <HistoryChart data={history} />

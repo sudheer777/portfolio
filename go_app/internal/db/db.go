@@ -59,6 +59,21 @@ func createTables() error {
 			updated_at DATETIME,
 			FOREIGN KEY(user_id) REFERENCES users(id)
 		);`,
+		`CREATE TABLE IF NOT EXISTS job_details (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER UNIQUE,
+			joining_date DATETIME,
+			current_ctc REAL,
+			FOREIGN KEY(user_id) REFERENCES users(id)
+		);`,
+		`CREATE TABLE IF NOT EXISTS salary_history (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER,
+			date DATETIME,
+			ctc REAL,
+			event_type TEXT,
+			FOREIGN KEY(user_id) REFERENCES users(id)
+		);`,
 	}
 
 	for _, q := range queries {
@@ -284,4 +299,56 @@ func GetRebalancerConfig(userID int64) (string, error) {
 		return "", err
 	}
 	return configJSON, nil
+}
+
+func SaveJobDetails(details models.JobDetails) error {
+	_, err := DB.Exec(`INSERT INTO job_details (user_id, joining_date, current_ctc) VALUES (?, ?, ?)
+		ON CONFLICT(user_id) DO UPDATE SET joining_date = excluded.joining_date, current_ctc = excluded.current_ctc`,
+		details.UserID, details.JoiningDate, details.CurrentCTC)
+	return err
+}
+
+func GetJobDetails(userID int64) (models.JobDetails, error) {
+	var jd models.JobDetails
+	var dateStr string
+	err := DB.QueryRow("SELECT id, user_id, joining_date, current_ctc FROM job_details WHERE user_id = ?", userID).
+		Scan(&jd.ID, &jd.UserID, &dateStr, &jd.CurrentCTC)
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			return jd, nil // Not found is fine, return empty
+		}
+		return jd, err
+	}
+	jd.JoiningDate, _ = time.Parse(time.RFC3339, dateStr)
+	return jd, nil
+}
+
+func AddSalaryHistory(h models.SalaryHistory) error {
+	_, err := DB.Exec("INSERT INTO salary_history (user_id, date, ctc, event_type) VALUES (?, ?, ?, ?)",
+		h.UserID, h.Date, h.CTC, h.EventType)
+	return err
+}
+
+func GetSalaryHistory(userID int64) ([]models.SalaryHistory, error) {
+	rows, err := DB.Query("SELECT id, user_id, date, ctc, event_type FROM salary_history WHERE user_id = ? ORDER BY date", userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var history []models.SalaryHistory
+	for rows.Next() {
+		var h models.SalaryHistory
+		var dateStr string
+		if err := rows.Scan(&h.ID, &h.UserID, &dateStr, &h.CTC, &h.EventType); err != nil {
+			return nil, err
+		}
+		h.Date, _ = time.Parse(time.RFC3339, dateStr)
+		history = append(history, h)
+	}
+	return history, nil
+}
+
+func DeleteSalaryHistory(id, userID int64) error {
+	_, err := DB.Exec("DELETE FROM salary_history WHERE id = ? AND user_id = ?", id, userID)
+	return err
 }

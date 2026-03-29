@@ -41,3 +41,18 @@ export interface InterestRate {
     date: string;
     rate: number;
 }
+
+export interface JobDetails {
+    id: number;
+    user_id: number;
+    joining_date: string;
+    current_ctc: number;
+}
+
+export interface SalaryHistory {
+    id: number;
+    user_id: number;
+    date: string;
+    ctc: number;
+    event_type: string;
+}

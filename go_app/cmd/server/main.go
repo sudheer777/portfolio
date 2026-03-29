@@ -93,6 +93,13 @@ func main() {
 		// Rebalancer Config
 		apiGroup.GET("/rebalancer-config", h.GetRebalancerConfig)
 		apiGroup.POST("/rebalancer-config", h.SaveRebalancerConfig)
+
+		// Career Calculator
+		apiGroup.GET("/job-details", h.GetJobDetails)
+		apiGroup.POST("/job-details", h.SaveJobDetails)
+		apiGroup.GET("/salary-history", h.GetSalaryHistory)
+		apiGroup.POST("/salary-history", h.AddSalaryHistory)
+		apiGroup.DELETE("/salary-history/:id", h.DeleteSalaryHistory)
 	}
 
 	log.Println("Server starting on :8080")

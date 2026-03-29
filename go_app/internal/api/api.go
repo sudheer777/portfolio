@@ -683,3 +683,114 @@ func (h *Handler) SaveRebalancerConfig(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"status": "saved"})
 }
+
+func (h *Handler) GetJobDetails(c *gin.Context) {
+	userID, _ := c.Get("userID")
+	authUserID := userID.(int64)
+
+	jd, err := db.GetJobDetails(authUserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch job details"})
+		return
+	}
+	c.JSON(http.StatusOK, jd)
+}
+
+func (h *Handler) SaveJobDetails(c *gin.Context) {
+	userID, _ := c.Get("userID")
+	authUserID := userID.(int64)
+
+	var input struct {
+		JoiningDate string  `json:"joining_date"` // YYYY-MM-DD
+		CurrentCTC  float64 `json:"current_ctc"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	t, err := time.Parse("2006-01-02", input.JoiningDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date format"})
+		return
+	}
+
+	jd := models.JobDetails{
+		UserID:      authUserID,
+		JoiningDate: t,
+		CurrentCTC:  input.CurrentCTC,
+	}
+
+	if err := db.SaveJobDetails(jd); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save job details"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "saved"})
+}
+
+func (h *Handler) GetSalaryHistory(c *gin.Context) {
+	userID, _ := c.Get("userID")
+	authUserID := userID.(int64)
+
+	history, err := db.GetSalaryHistory(authUserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch salary history"})
+		return
+	}
+	if history == nil {
+		history = []models.SalaryHistory{}
+	}
+	c.JSON(http.StatusOK, history)
+}
+
+func (h *Handler) AddSalaryHistory(c *gin.Context) {
+	userID, _ := c.Get("userID")
+	authUserID := userID.(int64)
+
+	var input struct {
+		Date      string  `json:"date"` // YYYY-MM-DD
+		CTC       float64 `json:"ctc"`
+		EventType string  `json:"event_type"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	t, err := time.Parse("2006-01-02", input.Date)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date format"})
+		return
+	}
+
+	sh := models.SalaryHistory{
+		UserID:    authUserID,
+		Date:      t,
+		CTC:       input.CTC,
+		EventType: input.EventType,
+	}
+
+	if err := db.AddSalaryHistory(sh); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save salary history"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"status": "created"})
+}
+
+func (h *Handler) DeleteSalaryHistory(c *gin.Context) {
+	userID, _ := c.Get("userID")
+	authUserID := userID.(int64)
+
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	if err := db.DeleteSalaryHistory(id, authUserID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete salary history"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}

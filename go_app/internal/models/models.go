@@ -56,3 +56,18 @@ type PortfolioHistory struct {
 	TotalAmount float64   `json:"total_amount"`
 	UserID      int64     `json:"user_id"`
 }
+
+type JobDetails struct {
+	ID          int64     `json:"id"`
+	UserID      int64     `json:"user_id"`
+	JoiningDate time.Time `json:"joining_date"`
+	CurrentCTC  float64   `json:"current_ctc"`
+}
+
+type SalaryHistory struct {
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"user_id"`
+	Date      time.Time `json:"date"`
+	CTC       float64   `json:"ctc"`
+	EventType string    `json:"event_type"` // e.g., "Joining", "Hike", "Promotion"
+}

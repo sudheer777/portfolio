@@ -1,4 +1,4 @@
-import type { InterestRate, PortfolioSummary, Transaction, User } from "./types";
+import type { InterestRate, PortfolioSummary, Transaction, User, JobDetails, SalaryHistory } from "./types";
 
 const API_BASE = "/api";
 const AUTH_BASE = "";
@@ -212,5 +212,44 @@ export const api = {
             body: JSON.stringify({ config }),
         });
         if (!res.ok) throw new Error("Failed to save rebalancer config");
+    },
+
+    getJobDetails: async (): Promise<JobDetails | null> => {
+        const res = await fetchWithAuth(`${API_BASE}/job-details`);
+        if (!res.ok) throw new Error("Failed to fetch job details");
+        const data = await res.json();
+        if (!data.id) return null; // empty response indicates not set
+        return data;
+    },
+
+    saveJobDetails: async (joining_date: string, current_ctc: number): Promise<void> => {
+        const res = await fetchWithAuth(`${API_BASE}/job-details`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ joining_date, current_ctc }),
+        });
+        if (!res.ok) throw new Error("Failed to save job details");
+    },
+
+    getSalaryHistory: async (): Promise<SalaryHistory[]> => {
+        const res = await fetchWithAuth(`${API_BASE}/salary-history`);
+        if (!res.ok) throw new Error("Failed to fetch salary history");
+        return res.json();
+    },
+
+    addSalaryHistory: async (date: string, ctc: number, event_type: string): Promise<void> => {
+        const res = await fetchWithAuth(`${API_BASE}/salary-history`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ date, ctc, event_type }),
+        });
+        if (!res.ok) throw new Error("Failed to save salary history");
+    },
+
+    deleteSalaryHistory: async (id: number): Promise<void> => {
+        const res = await fetchWithAuth(`${API_BASE}/salary-history/${id}`, {
+            method: "DELETE",
+        });
+        if (!res.ok) throw new Error("Failed to delete salary history");
     },
 };
