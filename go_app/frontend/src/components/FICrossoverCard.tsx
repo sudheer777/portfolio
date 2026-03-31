@@ -48,8 +48,12 @@ const getSurchargeWithRelief = (taxableIncome: number, basicTax: number) => {
 
 export const calculateTaxesNewRegime = (ctc: number) => {
     const epf = ctc * 0.12;
-    const nonTaxableEpf = ctc * 0.06;
-    let taxableIncome = ctc - nonTaxableEpf - 75000; // FY 25-26 Standard Deduction
+    const employerPf = ctc * 0.06;
+
+    // Per Indian Tax Rules: Employer EPF contribution > ₹7.5L becomes taxable perquisite
+    const excludableEmployerPf = Math.min(employerPf, 750000);
+
+    let taxableIncome = ctc - excludableEmployerPf - 75000; // FY 25-26 Standard Deduction
     if (taxableIncome < 0) taxableIncome = 0;
 
     const basicTax = getBasicTax(taxableIncome);

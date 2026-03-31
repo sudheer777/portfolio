@@ -326,6 +326,27 @@ export default function CareerCalculator() {
                                             <p className="font-bold text-blue-700 text-lg">{formatCurrency(inHandLeave)}</p>
                                             <p className="text-[10px] text-gray-500 mt-0.5">Gross: {formatCurrency(currentLeave)}</p>
                                         </div>
+                                        <div className="p-3 bg-indigo-50 rounded border border-indigo-100 shadow-sm flex flex-col justify-center">
+                                            <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-1">True Working Rate</p>
+                                            <div className="grid grid-cols-2 gap-1 mt-1 text-xs">
+                                                <div>
+                                                    <p className="text-[9px] text-indigo-400">Net/Day</p>
+                                                    <p className="font-bold text-indigo-900">{formatCurrency((sim.monthlyInHand * 12) / 251)}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] text-indigo-400">Gross/Day</p>
+                                                    <p className="font-bold text-indigo-900">{formatCurrency(ctcVal / 251)}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] text-indigo-400">Net/Hour</p>
+                                                    <p className="font-bold text-indigo-900">{formatCurrency((sim.monthlyInHand * 12) / 2008)}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] text-indigo-400">Gross/Hour</p>
+                                                    <p className="font-bold text-indigo-900">{formatCurrency(ctcVal / 2008)}</p>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </>
                                 );
                             })()}
@@ -361,10 +382,21 @@ export default function CareerCalculator() {
 
                                 <div className="p-4 bg-orange-50 rounded shadow-inner border border-orange-100">
                                     <p className="text-gray-600 text-sm mb-2">Estimated In-Hand Salary</p>
-                                    <div className="flex justify-between items-end">
+                                    <div className="flex justify-between items-end mb-4">
                                         <div>
                                             <p className="text-2xl font-bold text-orange-700">{formatCurrency(taxData.monthlyInHand)}<span className="text-sm font-normal text-gray-600"> /mo</span></p>
-                                            <p className="text-xs text-gray-500 mt-1">Daily: {formatCurrency(dailyInHand)} | Tax: {formatCurrency(taxData.totalTax)}</p>
+                                            <p className="text-xs text-gray-500 mt-1">Standard Daily: {formatCurrency(dailyInHand)} | Hourly: {formatCurrency(dailyInHand / 8)} | Tax: {formatCurrency(taxData.totalTax)}</p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white/60 rounded p-3 text-sm text-gray-700 space-y-2 border border-orange-200 shadow-sm">
+                                        <p className="font-semibold border-b border-orange-200 pb-1 mb-2 text-xs text-orange-800 uppercase tracking-wide">True Working Rate (251 Days / 2008 Hrs)</p>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-600 text-xs font-medium">Net In-Hand</span>
+                                            <span className="font-bold text-orange-800">{formatCurrency((taxData.monthlyInHand * 12) / 251)}/day <span className="text-gray-400 mx-1">|</span> {formatCurrency((taxData.monthlyInHand * 12) / 2008)}/hr</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-600 text-xs font-medium">Gross CTC</span>
+                                            <span className="font-bold text-gray-800">{formatCurrency(currentCtcVal / 251)}/day <span className="text-gray-400 mx-1">|</span> {formatCurrency(currentCtcVal / 2008)}/hr</span>
                                         </div>
                                     </div>
                                 </div>
