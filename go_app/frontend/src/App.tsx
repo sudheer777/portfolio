@@ -9,6 +9,7 @@ import { api } from './api';
 import PPFCalculator from './components/PPFCalculator';
 import { AssetRebalancer } from './components/AssetRebalancer';
 import CareerCalculator from './components/CareerCalculator';
+import ExpenseFICalculator from './components/ExpenseFICalculator';
 import { ReloadPrompt } from './components/ReloadPrompt';
 
 function App() {
@@ -16,7 +17,7 @@ function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'rates' | 'epf' | 'ppf' | 'rebalancer' | 'career'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'rates' | 'epf' | 'ppf' | 'rebalancer' | 'career' | 'fire'>('dashboard');
 
   useEffect(() => {
     setIsAuthenticated(api.checkAuth());
@@ -126,6 +127,15 @@ function App() {
           >
             Career Growth
           </button>
+          <button
+            onClick={() => setView('fire')}
+            className={`py-2 px-4 font-medium transition-colors duration-200 border-b-2 whitespace-nowrap flex items-center gap-1 ${view === 'fire'
+              ? 'border-red-600 text-red-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+          >
+            <span className="text-red-500 font-bold">FIRE</span> Simulator
+          </button>
         </div>
 
         <main>
@@ -154,8 +164,10 @@ function App() {
             <PPFCalculator />
           ) : view === 'rebalancer' ? (
             <AssetRebalancer />
-          ) : (
+          ) : view === 'career' ? (
             <CareerCalculator />
+          ) : (
+            <ExpenseFICalculator />
           )}
         </main>
       </div>

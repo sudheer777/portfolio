@@ -1,4 +1,4 @@
-import type { InterestRate, PortfolioSummary, Transaction, User, JobDetails, SalaryHistory } from "./types";
+import type { InterestRate, PortfolioSummary, Transaction, User, JobDetails, SalaryHistory, PortfolioHistory } from "./types";
 
 const API_BASE = "/api";
 const AUTH_BASE = "";
@@ -64,6 +64,30 @@ export const api = {
         const res = await fetchWithAuth(`${API_BASE}/users`);
         if (!res.ok) throw new Error("Failed to fetch users");
         return res.json();
+    },
+
+    getMe: async (): Promise<User> => {
+        const res = await fetchWithAuth(`${API_BASE}/me`);
+        if (!res.ok) throw new Error("Failed to fetch current user");
+        return res.json();
+    },
+
+    updateUserDOB: async (date_of_birth: string): Promise<void> => {
+        const res = await fetchWithAuth(`${API_BASE}/user/dob`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ date_of_birth }),
+        });
+        if (!res.ok) throw new Error("Failed to update date of birth");
+    },
+
+    updateFireSettings: async (yearly_expense: number, inflation_rate: number, life_expectancy: number): Promise<void> => {
+        const res = await fetchWithAuth(`${API_BASE}/user/fire-settings`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ yearly_expense, inflation_rate, life_expectancy }),
+        });
+        if (!res.ok) throw new Error("Failed to update fire settings");
     },
 
     getCustomers: async (): Promise<string[]> => {
@@ -133,7 +157,7 @@ export const api = {
         return res.json();
     },
 
-    async getHistory(): Promise<{ id: number; date: string; total_amount: number }[]> {
+    async getHistory(): Promise<PortfolioHistory[]> {
         const res = await fetchWithAuth(`${API_BASE}/history`);
         if (!res.ok) throw new Error("Failed to fetch history");
         return res.json();

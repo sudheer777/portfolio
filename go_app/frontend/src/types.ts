@@ -1,6 +1,11 @@
 export interface User {
     id: number;
     name: string;
+    email?: string;
+    date_of_birth?: string;
+    yearly_expense?: number;
+    inflation_rate?: number;
+    life_expectancy?: number;
 }
 
 export interface Transaction {
@@ -55,4 +60,11 @@ export interface SalaryHistory {
     date: string;
     ctc: number;
     event_type: string;
+}
+
+export interface PortfolioHistory {
+    id: number;
+    date: string;
+    total_amount: number;
+    asset_summary_json?: string;
 }

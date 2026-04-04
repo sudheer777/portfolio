@@ -7,7 +7,7 @@ import { HistoryChart } from "./HistoryChart";
 import { HistoryList } from "./HistoryList";
 import { HistoryAnalysis, type Milestone } from "./HistoryAnalysis";
 import { FICrossoverCard } from "./FICrossoverCard";
-import type { PortfolioSummary, UserSummary, Amount } from "../types";
+import type { PortfolioSummary, UserSummary, Amount, PortfolioHistory } from "../types";
 
 export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () => void }> = ({ refreshKey, onTransactionChange }) => {
     const [data, setData] = useState<PortfolioSummary | null>(null);
@@ -15,7 +15,10 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
     const [error, setError] = useState("");
     const [selectedCustomerName, setSelectedCustomerName] = useState<string | null>(null);
 
-    const [history, setHistory] = useState<any[]>([]);
+    const [liveData, setLiveData] = useState<PortfolioSummary | null>(null);
+    const [selectedSnapshotId, setSelectedSnapshotId] = useState<number | null>(null);
+
+    const [history, setHistory] = useState<PortfolioHistory[]>([]);
     const [manualDate, setManualDate] = useState("");
     const [manualAmount, setManualAmount] = useState("");
     const [showHistoryForm, setShowHistoryForm] = useState(false);
@@ -60,6 +63,7 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
         api.getPortfolio()
             .then(res => {
                 setData(res);
+                setLiveData(res);
                 if (res && res.user_summaries.length > 0 && selectedCustomerName === null) {
                     setSelectedCustomerName(res.user_summaries[0].user_name);
                 }
@@ -96,6 +100,34 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
         }
     };
 
+    const handleSnapshotSelect = (idStr: string) => {
+        if (!idStr) {
+            setSelectedSnapshotId(null);
+            if (liveData) {
+                setData(liveData);
+            }
+            return;
+        }
+
+        const id = parseInt(idStr);
+        setSelectedSnapshotId(id);
+        const snapshot = history.find(h => h.id === id);
+
+        if (snapshot) {
+            if (snapshot.asset_summary_json) {
+                try {
+                    const parsed: PortfolioSummary = JSON.parse(snapshot.asset_summary_json);
+                    setData(parsed);
+                } catch (e) {
+                    console.error("Failed to parse historical snapshot:", e);
+                    alert("Failed to load rich snapshot data. It might be corrupted.");
+                }
+            } else {
+                alert("This is a Legacy Snapshot! It was created before the Time Machine feature was implemented, so it only contains a Total Amount and cannot graphically rewind the dashboard.");
+            }
+        }
+    };
+
     if (loading) return <div className="text-center p-4">Loading stats...</div>;
     if (error) return <div className="text-red-500 p-4">{error}</div>;
     if (!data) return null;
@@ -119,11 +151,37 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
 
     const selectedUser = data.user_summaries.find(u => u.user_name === selectedCustomerName);
 
+    const validHistoryOptions = history
+        .filter(h => h.asset_summary_json)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
     return (
         <div className="space-y-8">
             <div className="bg-indigo-50 rounded-lg shadow border border-indigo-100 p-6">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold text-indigo-900">Grand Total (All Users)</h3>
+                    <div className="flex items-center gap-6">
+                        <h3 className="text-xl font-bold text-indigo-900">Grand Total (All Users)</h3>
+                        {validHistoryOptions.length > 0 && (
+                            <div className="flex items-center gap-2 bg-white border border-indigo-200 rounded-md p-1.5 shadow-sm">
+                                <span className="text-lg">⏳</span>
+                                <div className="flex flex-col">
+                                    <label className="text-[9px] font-bold text-indigo-800 uppercase tracking-wider leading-none mb-0.5">Time Machine</label>
+                                    <select
+                                        className="bg-transparent text-xs font-semibold text-indigo-900 border-none focus:ring-0 p-0 cursor-pointer w-48 leading-none"
+                                        value={selectedSnapshotId?.toString() || ""}
+                                        onChange={(e) => handleSnapshotSelect(e.target.value)}
+                                    >
+                                        <option value="">Present Day (Live)</option>
+                                        {validHistoryOptions.map(h => (
+                                            <option key={h.id} value={h.id.toString()}>
+                                                {new Date(h.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })} Snapshot (₹{(h.total_amount / 100000).toFixed(1)}L)
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     <div className="space-x-2">
                         <button
                             onClick={() => setShowHistoryForm(!showHistoryForm)}

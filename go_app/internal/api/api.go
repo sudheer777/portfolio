@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"sort"
@@ -24,24 +25,16 @@ func NewHandler() *Handler {
 	return &Handler{}
 }
 
-func (h *Handler) GetPortfolio(c *gin.Context) {
-	// 0. Get Auth Context
-	userID, _ := c.Get("userID")
-	authUserID := userID.(int64)
-
-	// 1. Fetch Data - Scoped to User
+func (h *Handler) generatePortfolioSummary(authUserID int64) (models.PortfolioSummary, error) {
 	transactions, err := db.GetTransactionsByUserID(authUserID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch transactions"})
-		return
+		return models.PortfolioSummary{}, err
 	}
 	rates, err := db.GetAllInterestRates()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch rates"})
-		return
+		return models.PortfolioSummary{}, err
 	}
 
-	// 2. Setup Calculator
 	fdManager := service.NewFDManager()
 	for _, r := range rates {
 		dateStr := r.Date.Format("2006-01-02")
@@ -50,10 +43,7 @@ func (h *Handler) GetPortfolio(c *gin.Context) {
 		}
 	}
 
-	// 3. Compute Aggregates
-	// Map: CustomerName -> FDType -> Amount
 	customerAgg := make(map[string]map[string]models.Amount)
-	// Map: CustomerName -> AssetType -> Amount
 	customerAggAssetTypes := make(map[string]map[string]models.Amount)
 
 	for _, t := range transactions {
@@ -65,7 +55,6 @@ func (h *Handler) GetPortfolio(c *gin.Context) {
 
 		res := fd.ComputeInterest(t)
 
-		// Use CustomerName for grouping explicitly
 		cName := t.CustomerName
 		if cName == "" {
 			cName = "Self"
@@ -79,7 +68,6 @@ func (h *Handler) GetPortfolio(c *gin.Context) {
 		}
 
 		current := customerAgg[cName][t.FDType]
-		// Add
 		newAmount := models.Amount{
 			Principal:   current.Principal + res.Principal,
 			Interest:    current.Interest + res.Interest,
@@ -88,7 +76,6 @@ func (h *Handler) GetPortfolio(c *gin.Context) {
 		}
 		customerAgg[cName][t.FDType] = newAmount
 
-		// Add to AssetType aggregation
 		currentAsset := customerAggAssetTypes[cName][t.AssetType]
 		newAssetAmount := models.Amount{
 			Principal:   currentAsset.Principal + res.Principal,
@@ -99,12 +86,10 @@ func (h *Handler) GetPortfolio(c *gin.Context) {
 		customerAggAssetTypes[cName][t.AssetType] = newAssetAmount
 	}
 
-	// 4. Build Response
 	summaries := make([]models.UserSummary, 0)
 	var totalPortfolio models.Amount
 	totalAssetTypes := make(map[string]models.Amount)
 
-	// Sort customers
 	var customers []string
 	for name := range customerAgg {
 		customers = append(customers, name)
@@ -126,7 +111,6 @@ func (h *Handler) GetPortfolio(c *gin.Context) {
 			userTotal.FinalAmount += amt.FinalAmount
 		}
 
-		// Add user asset types to total portfolio asset types
 		for aType, amt := range assetTypes {
 			curr := totalAssetTypes[aType]
 			totalAssetTypes[aType] = models.Amount{
@@ -138,8 +122,8 @@ func (h *Handler) GetPortfolio(c *gin.Context) {
 		}
 
 		summaries = append(summaries, models.UserSummary{
-			UserName:   name, // Display Customer Name
-			UserID:     0,    // Not using UserID for identification in frontend anymore, or use AuthID? Keep 0 to avoid confusion.
+			UserName:   name,
+			UserID:     0,
 			FDS:        fds,
 			AssetTypes: assetTypes,
 			Total:      userTotal,
@@ -151,11 +135,24 @@ func (h *Handler) GetPortfolio(c *gin.Context) {
 		totalPortfolio.FinalAmount += userTotal.FinalAmount
 	}
 
-	c.JSON(http.StatusOK, models.PortfolioSummary{
+	return models.PortfolioSummary{
 		UserSummaries: summaries,
 		Total:         totalPortfolio,
 		AssetTypes:    totalAssetTypes,
-	})
+	}, nil
+}
+
+func (h *Handler) GetPortfolio(c *gin.Context) {
+	userID, _ := c.Get("userID")
+	authUserID := userID.(int64)
+
+	summary, err := h.generatePortfolioSummary(authUserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch portfolio"})
+		return
+	}
+
+	c.JSON(http.StatusOK, summary)
 }
 
 func (h *Handler) AddTransaction(c *gin.Context) {
@@ -321,6 +318,83 @@ func (h *Handler) GetUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, list)
 }
 
+func (h *Handler) GetMe(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	authUserID := userID.(int64)
+
+	u, err := db.GetUserByID(authUserID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, u)
+}
+
+func (h *Handler) UpdateUserDOB(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	authUserID := userID.(int64)
+
+	var input struct {
+		DateOfBirth string `json:"date_of_birth"` // YYYY-MM-DD
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	t, err := time.Parse("2006-01-02", input.DateOfBirth)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date format, use YYYY-MM-DD"})
+		return
+	}
+
+	if err := db.UpdateUserDOB(authUserID, t); err != nil {
+		log.Printf("Failed to update dob: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update date of birth"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "updated"})
+}
+
+func (h *Handler) UpdateFireSettings(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	authUserID := userID.(int64)
+
+	var input struct {
+		YearlyExpense  float64 `json:"yearly_expense"`
+		InflationRate  float64 `json:"inflation_rate"`
+		LifeExpectancy float64 `json:"life_expectancy"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := db.UpdateFireSettings(authUserID, input.YearlyExpense, input.InflationRate, input.LifeExpectancy); err != nil {
+		log.Printf("Failed to update fire settings: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update FIRE settings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "updated"})
+}
+
 func (h *Handler) Login(c *gin.Context) {
 	var input struct {
 		Email    string `json:"email"`
@@ -399,42 +473,27 @@ func (h *Handler) GetCustomers(c *gin.Context) {
 }
 
 func (h *Handler) SaveSnapshot(c *gin.Context) {
-	// Re-calculates total and saves it. Ideally we could accept total from FE, but calculating on BE is safer.
 	userID, _ := c.Get("userID")
 	authUserID := userID.(int64)
 
-	// Fetch Data
-	transactions, err := db.GetTransactionsByUserID(authUserID)
+	summary, err := h.generatePortfolioSummary(authUserID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch transactions"})
-		return
-	}
-	rates, err := db.GetAllInterestRates()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch rates"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate portfolio summary for snapshot"})
 		return
 	}
 
-	// Compute
-	fdManager := service.NewFDManager()
-	for _, r := range rates {
-		fdManager.AddRate(r.FDType, r.Date.Format("2006-01-02"), r.Rate)
+	jsonBytes, err := json.Marshal(summary)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to serialize portfolio summary"})
+		return
 	}
+	jsonStr := string(jsonBytes)
 
-	var totalAmount float64
-	for _, t := range transactions {
-		fd, err := fdManager.GetFD(t.FDType)
-		if err == nil {
-			res := fd.ComputeInterest(t)
-			totalAmount += res.FinalAmount
-		}
-	}
-
-	// Save
 	history := models.PortfolioHistory{
-		Date:        time.Now(),
-		TotalAmount: totalAmount,
-		UserID:      authUserID,
+		Date:             time.Now(),
+		TotalAmount:      summary.Total.FinalAmount,
+		UserID:           authUserID,
+		AssetSummaryJSON: &jsonStr,
 	}
 
 	if err := db.AddPortfolioHistory(history); err != nil {

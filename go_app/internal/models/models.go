@@ -5,10 +5,14 @@ import (
 )
 
 type User struct {
-	ID       int64  `json:"id"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"-"` // Never send password in JSON
+	ID             int64      `json:"id"`
+	Name           string     `json:"name"`
+	Email          string     `json:"email"`
+	Password       string     `json:"-"` // Never send password in JSON
+	DateOfBirth    *time.Time `json:"date_of_birth"`
+	YearlyExpense  *float64   `json:"yearly_expense"`
+	InflationRate  *float64   `json:"inflation_rate"`
+	LifeExpectancy *float64   `json:"life_expectancy"`
 }
 
 type Transaction struct {
@@ -51,10 +55,11 @@ type UserSummary struct {
 }
 
 type PortfolioHistory struct {
-	ID          int64     `json:"id"`
-	Date        time.Time `json:"date"`
-	TotalAmount float64   `json:"total_amount"`
-	UserID      int64     `json:"user_id"`
+	ID               int64     `json:"id"`
+	Date             time.Time `json:"date"`
+	TotalAmount      float64   `json:"total_amount"`
+	UserID           int64     `json:"user_id"`
+	AssetSummaryJSON *string   `json:"asset_summary_json"`
 }
 
 type JobDetails struct {

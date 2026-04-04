@@ -11,7 +11,7 @@ import {
     ResponsiveContainer,
     Legend
 } from 'recharts';
-import { FICrossoverCard, calculateTaxesNewRegime } from './FICrossoverCard';
+import { FICrossoverCard, calculateTaxesNewRegime, calculateTaxOnLumpSum } from './FICrossoverCard';
 
 // Standard XIRR approximation
 const calculateXIRR = (cashFlows: { amount: number; date: Date }[]): number => {
@@ -125,11 +125,11 @@ export default function CareerCalculator() {
     const currentLeaveEncashment = dailyBase * (parseFloat(accruedLeaves) || 0);
 
     // Calculate In-Hand values by deducing marginal tax impact at current CTC
-    const taxWithLeave = calculateTaxesNewRegime(currentCtcVal + currentLeaveEncashment).totalTax;
+    const taxWithLeave = calculateTaxOnLumpSum(taxData.taxableIncome, currentLeaveEncashment);
     const inHandLeaveEncashment = currentLeaveEncashment - (taxWithLeave - taxData.totalTax);
 
     const taxableGratuity = Math.max(0, currentGratuity - 2000000); // Exclude first 20 Lakhs
-    const taxWithGrat = calculateTaxesNewRegime(currentCtcVal + taxableGratuity).totalTax;
+    const taxWithGrat = calculateTaxOnLumpSum(taxData.taxableIncome, taxableGratuity);
     const inHandGratuity = currentGratuity - (taxWithGrat - taxData.totalTax);
 
     // Projections
@@ -171,8 +171,15 @@ export default function CareerCalculator() {
     let simCtc = lastActCtc || currentCtcVal;
     let simYos = yearsOfService;
 
+    // Track previous values for YoY delta calculation
+    let prevCtc = simCtc;
+    let prevSimTaxData = calculateTaxesNewRegime(simCtc);
+    let prevInHandMonthly = prevSimTaxData.monthlyInHand;
+    let prevTaxYearly = prevSimTaxData.totalTax;
+    let prevEpfYearly = prevSimTaxData.epf;
+
     for (let i = 1; i <= projYears; i++) {
-        simCtc = simCtc * (1 + hikeRate);
+        simCtc = prevCtc * (1 + hikeRate);
         simYos += 1;
 
         const projDate = new Date(lastDate);
@@ -185,23 +192,62 @@ export default function CareerCalculator() {
         const simGrat = simYos >= 4.8 ? Math.round(simMonBase * (15 / 26) * Math.round(simYos)) : 0;
         const simLeave = simDaily * (parseFloat(accruedLeaves) || 0);
 
-        const simTaxWithLeave = calculateTaxesNewRegime(simCtc + simLeave).totalTax;
+        const simTaxWithLeave = calculateTaxOnLumpSum(simTaxData.taxableIncome, simLeave);
         const simInHandLeave = simLeave - (simTaxWithLeave - simTaxData.totalTax);
 
         const simTaxableGrat = Math.max(0, simGrat - 2000000);
-        const simTaxWithGrat = calculateTaxesNewRegime(simCtc + simTaxableGrat).totalTax;
+        const simTaxWithGrat = calculateTaxOnLumpSum(simTaxData.taxableIncome, simTaxableGrat);
         const simInHandGrat = simGrat - (simTaxWithGrat - simTaxData.totalTax);
+
+        // Calculate the Increment Values:
+        // 1. Gross deltas
+        const grossIncrease = simCtc - prevCtc;
+        const inhandIncreaseMonthly = simTaxData.monthlyInHand - prevInHandMonthly;
+
+        const taxIncreaseYearly = simTaxData.totalTax - prevTaxYearly;
+        const epfIncreaseYearly = simTaxData.epf - prevEpfYearly;
+
+        // 2. Gratuity and Leave calculated at 0% Hike
+        const prevMonBase = prevCtc / 24;
+        const prevDaily = prevMonBase / 30;
+        const gratAtZeroHike = simYos >= 4.8 ? Math.round(prevMonBase * (15 / 26) * Math.round(simYos)) : 0;
+        const leaveAtZeroHike = prevDaily * (parseFloat(accruedLeaves) || 0);
+
+        // Nets at 0% hike
+        const taxWithGrat0 = calculateTaxOnLumpSum(prevSimTaxData.taxableIncome, Math.max(0, gratAtZeroHike - 2000000));
+        const inHandGrat0 = gratAtZeroHike - (taxWithGrat0 - prevTaxYearly);
+
+        const taxWithLeave0 = calculateTaxOnLumpSum(prevSimTaxData.taxableIncome, leaveAtZeroHike);
+        const inHandLeave0 = leaveAtZeroHike - (taxWithLeave0 - prevTaxYearly);
+
+        const gratuityIncrease = simGrat - gratAtZeroHike; // Gross Gratuity increase
+        const gratuityNetIncrease = simInHandGrat - inHandGrat0; // Net Gratuity increase
+        const leaveIncrease = simLeave - leaveAtZeroHike; // Gross Leave increase
+        const leaveNetIncrease = simInHandLeave - inHandLeave0; // Net Leave increase
+
+        const totalGrossIncrease = grossIncrease + gratuityIncrease + leaveIncrease;
+        const totalNetIncrease = (inhandIncreaseMonthly * 12) + gratuityNetIncrease + leaveNetIncrease;
 
         projectionData.push({
             year: `+${i} Year`,
             ctc: simCtc,
+            grossIncrease: grossIncrease,
             inHand: simTaxData.monthlyInHand, // Per month
+            inHandIncrease: inhandIncreaseMonthly, // Per month
             tax: simTaxData.totalTax,         // Per year
+            taxIncrease: taxIncreaseYearly,
             epf: simTaxData.epf,              // Per year
+            epfIncrease: epfIncreaseYearly,
             gratuity: simGrat,
+            gratuityIncrease: gratuityIncrease,
+            gratuityNetIncrease: gratuityNetIncrease,
             inHandGratuity: simInHandGrat,
             leave: simLeave,
-            inHandLeave: simInHandLeave
+            leaveIncrease: leaveIncrease,
+            leaveNetIncrease: leaveNetIncrease,
+            inHandLeave: simInHandLeave,
+            totalGrossIncrease,
+            totalNetIncrease
         });
 
         chartData.push({
@@ -209,6 +255,13 @@ export default function CareerCalculator() {
             projected_ctc: Math.round(simCtc),
             cagr_since_join: getPointCAGR(simCtc, projDate)
         });
+
+        // Set previous states for the next year
+        prevCtc = simCtc;
+        prevSimTaxData = simTaxData;
+        prevInHandMonthly = simTaxData.monthlyInHand;
+        prevTaxYearly = simTaxData.totalTax;
+        prevEpfYearly = simTaxData.epf;
     }
 
     // Math for CAGR
@@ -441,23 +494,57 @@ export default function CareerCalculator() {
                                             <th className="p-2">Yearly PF</th>
                                             <th className="p-2">Gratuity Value</th>
                                             <th className="p-2">{accruedLeaves} Leaves Value</th>
+                                            <th className="p-2 bg-indigo-50 border-l border-indigo-100">Total Increment (Gross)</th>
+                                            <th className="p-2 bg-indigo-50">Total Increment (Net)</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {projectionData.map((pd, index) => (
                                             <tr key={index} className="border-b">
                                                 <td className="p-2 text-indigo-600 font-medium">{pd.year}</td>
-                                                <td className="p-2 font-bold">{formatCurrency(pd.ctc)}</td>
-                                                <td className="p-2 text-orange-600 font-medium">{formatCurrency(pd.inHand)}</td>
-                                                <td className="p-2 text-red-600">{formatCurrency(pd.tax)}</td>
-                                                <td className="p-2 text-teal-600">{formatCurrency(pd.epf)}</td>
+                                                <td className="p-2 font-bold">
+                                                    {formatCurrency(pd.ctc)}
+                                                    <div className="text-[10px] text-green-600 font-semibold mt-0.5 whitespace-nowrap">▲ {formatCurrency(pd.grossIncrease)} Gross</div>
+                                                </td>
+                                                <td className="p-2 text-orange-600 font-medium">
+                                                    {formatCurrency(pd.inHand)}
+                                                    <div className="text-[10px] text-green-600 font-semibold mt-0.5 whitespace-nowrap">▲ {formatCurrency(pd.inHandIncrease)} /mo In-Hand</div>
+                                                </td>
+                                                <td className="p-2 text-red-600">
+                                                    {formatCurrency(pd.tax)}
+                                                    <div className="text-[10px] text-red-400 font-semibold mt-0.5 whitespace-nowrap">▼ -{formatCurrency(pd.taxIncrease)} Tax Heat</div>
+                                                </td>
+                                                <td className="p-2 text-teal-600">
+                                                    {formatCurrency(pd.epf)}
+                                                    <div className="text-[10px] text-teal-500 font-semibold mt-0.5 whitespace-nowrap">▲ {formatCurrency(pd.epfIncrease)} Forced EPF</div>
+                                                </td>
                                                 <td className="p-2 font-medium text-green-600">
                                                     {formatCurrency(pd.inHandGratuity)}
                                                     <div className="text-[10px] text-gray-400 font-normal mt-0.5">Gross: {formatCurrency(pd.gratuity)}</div>
+                                                    <div className="text-[9px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.gratuityNetIncrease)} Net Incr</div>
+                                                    <div className="text-[9px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.gratuityIncrease)} Gross Incr</div>
                                                 </td>
                                                 <td className="p-2 font-medium text-blue-600">
                                                     {formatCurrency(pd.inHandLeave)}
                                                     <div className="text-[10px] text-gray-400 font-normal mt-0.5">Gross: {formatCurrency(pd.leave)}</div>
+                                                    <div className="text-[9px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.leaveNetIncrease)} Net Incr</div>
+                                                    <div className="text-[9px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.leaveIncrease)} Gross Incr</div>
+                                                </td>
+                                                <td className="p-2 font-extrabold text-gray-900 bg-indigo-50 border-l border-indigo-100">
+                                                    <span className="text-green-700">+ {formatCurrency(pd.totalGrossIncrease)}</span>
+                                                    <div className="text-[9px] text-gray-500 font-normal mt-1 whitespace-nowrap">
+                                                        <div>CTC <span className="text-green-600 font-medium">+{formatCurrency(pd.grossIncrease)}</span></div>
+                                                        <div>Grat <span className="text-green-600 font-medium">+{formatCurrency(pd.gratuityIncrease)}</span></div>
+                                                        <div>Leave <span className="text-green-600 font-medium">+{formatCurrency(pd.leaveIncrease)}</span></div>
+                                                    </div>
+                                                </td>
+                                                <td className="p-2 font-extrabold text-gray-900 bg-indigo-50">
+                                                    <span className="text-green-700">+ {formatCurrency(pd.totalNetIncrease)}</span>
+                                                    <div className="text-[9px] text-gray-500 font-normal mt-1 whitespace-nowrap">
+                                                        <div>Salary (Yr) <span className="text-green-600 font-medium">+{formatCurrency(pd.inHandIncrease * 12)}</span></div>
+                                                        <div>Grat <span className="text-green-600 font-medium">+{formatCurrency(pd.gratuityNetIncrease)}</span></div>
+                                                        <div>Leave <span className="text-green-600 font-medium">+{formatCurrency(pd.leaveNetIncrease)}</span></div>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}

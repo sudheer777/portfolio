@@ -26,7 +26,11 @@ func createTables() error {
 			id INTEGER PRIMARY KEY,
 			name TEXT,
 			email TEXT UNIQUE,
-			password TEXT
+			password TEXT,
+			date_of_birth DATETIME,
+			yearly_expense REAL,
+			inflation_rate REAL,
+			life_expectancy REAL
 		);`,
 		`CREATE TABLE IF NOT EXISTS transactions (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,6 +54,7 @@ func createTables() error {
 			date DATETIME,
 			total_amount REAL,
 			user_id INTEGER,
+			asset_summary_json TEXT,
 			FOREIGN KEY(user_id) REFERENCES users(id)
 		);`,
 		`CREATE TABLE IF NOT EXISTS rebalancer_config (
@@ -81,6 +86,14 @@ func createTables() error {
 			return err
 		}
 	}
+
+	// Migrations for existing DBs
+	DB.Exec(`ALTER TABLE users ADD COLUMN date_of_birth DATETIME;`) // Ignores error if column already exists
+	DB.Exec(`ALTER TABLE users ADD COLUMN yearly_expense REAL;`)
+	DB.Exec(`ALTER TABLE users ADD COLUMN inflation_rate REAL;`)
+	DB.Exec(`ALTER TABLE users ADD COLUMN life_expectancy REAL;`)
+	DB.Exec(`ALTER TABLE portfolio_history ADD COLUMN asset_summary_json TEXT;`)
+
 	return nil
 }
 
@@ -94,13 +107,54 @@ func CreateUser(name, email, passwordHash string) (int64, error) {
 
 func GetUserByEmail(email string) (models.User, error) {
 	var u models.User
-	err := DB.QueryRow("SELECT id, name, email, password FROM users WHERE email = ?", email).Scan(&u.ID, &u.Name, &u.Email, &u.Password)
+	var dobStr sql.NullString
+	err := DB.QueryRow("SELECT id, name, email, password, date_of_birth, yearly_expense, inflation_rate, life_expectancy FROM users WHERE email = ?", email).Scan(
+		&u.ID, &u.Name, &u.Email, &u.Password, &dobStr, &u.YearlyExpense, &u.InflationRate, &u.LifeExpectancy)
+
+	if dobStr.Valid && dobStr.String != "" {
+		parsedDate, parseErr := time.Parse(time.RFC3339, dobStr.String)
+		if parseErr == nil {
+			u.DateOfBirth = &parsedDate
+		}
+	}
 	return u, err
+}
+
+func GetUserByID(id int64) (models.User, error) {
+	var u models.User
+	var dobStr sql.NullString
+	err := DB.QueryRow("SELECT id, name, email, password, date_of_birth, yearly_expense, inflation_rate, life_expectancy FROM users WHERE id = ?", id).Scan(
+		&u.ID, &u.Name, &u.Email, &u.Password, &dobStr, &u.YearlyExpense, &u.InflationRate, &u.LifeExpectancy)
+
+	if dobStr.Valid && dobStr.String != "" {
+		parsedDate, parseErr := time.Parse(time.RFC3339, dobStr.String)
+		if parseErr == nil {
+			u.DateOfBirth = &parsedDate
+		}
+	}
+	return u, err
+}
+
+func UpdateUserDOB(userID int64, dob time.Time) error {
+	_, err := DB.Exec("UPDATE users SET date_of_birth = ? WHERE id = ?", dob.Format(time.RFC3339), userID)
+	return err
+}
+
+func UpdateFireSettings(userID int64, yearlyExpense, inflationRate, lifeExpectancy float64) error {
+	_, err := DB.Exec("UPDATE users SET yearly_expense = ?, inflation_rate = ?, life_expectancy = ? WHERE id = ?",
+		yearlyExpense, inflationRate, lifeExpectancy, userID)
+	return err
 }
 
 func AddUser(user models.User) error {
 	// Legacy or simple add, adapted for new schema if needed, but CreateUser is preferred for auth
-	_, err := DB.Exec("INSERT OR IGNORE INTO users (id, name, email, password) VALUES (?, ?, ?, ?)", user.ID, user.Name, user.Email, user.Password)
+	dob := sql.NullString{}
+	if user.DateOfBirth != nil {
+		dob.String = user.DateOfBirth.Format(time.RFC3339)
+		dob.Valid = true
+	}
+	_, err := DB.Exec("INSERT OR IGNORE INTO users (id, name, email, password, date_of_birth, yearly_expense, inflation_rate, life_expectancy) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		user.ID, user.Name, user.Email, user.Password, dob, user.YearlyExpense, user.InflationRate, user.LifeExpectancy)
 	return err
 }
 
@@ -249,12 +303,12 @@ func GetUniqueCustomers(userID int64) ([]string, error) {
 }
 
 func AddPortfolioHistory(h models.PortfolioHistory) error {
-	_, err := DB.Exec("INSERT INTO portfolio_history (date, total_amount, user_id) VALUES (?, ?, ?)", h.Date, h.TotalAmount, h.UserID)
+	_, err := DB.Exec("INSERT INTO portfolio_history (date, total_amount, user_id, asset_summary_json) VALUES (?, ?, ?, ?)", h.Date, h.TotalAmount, h.UserID, h.AssetSummaryJSON)
 	return err
 }
 
 func GetPortfolioHistory(userID int64) ([]models.PortfolioHistory, error) {
-	rows, err := DB.Query("SELECT id, date, total_amount, user_id FROM portfolio_history WHERE user_id = ? ORDER BY date", userID)
+	rows, err := DB.Query("SELECT id, date, total_amount, user_id, asset_summary_json FROM portfolio_history WHERE user_id = ? ORDER BY date", userID)
 	if err != nil {
 		return nil, err
 	}
@@ -263,17 +317,21 @@ func GetPortfolioHistory(userID int64) ([]models.PortfolioHistory, error) {
 	for rows.Next() {
 		var h models.PortfolioHistory
 		var dateStr string
-		if err := rows.Scan(&h.ID, &dateStr, &h.TotalAmount, &h.UserID); err != nil {
+		var assetSummary sql.NullString
+		if err := rows.Scan(&h.ID, &dateStr, &h.TotalAmount, &h.UserID, &assetSummary); err != nil {
 			return nil, err
 		}
 		h.Date, _ = time.Parse(time.RFC3339, dateStr)
+		if assetSummary.Valid && assetSummary.String != "" {
+			h.AssetSummaryJSON = &assetSummary.String
+		}
 		history = append(history, h)
 	}
 	return history, nil
 }
 
 func UpdatePortfolioHistory(h models.PortfolioHistory) error {
-	_, err := DB.Exec("UPDATE portfolio_history SET date = ?, total_amount = ? WHERE id = ? AND user_id = ?", h.Date, h.TotalAmount, h.ID, h.UserID)
+	_, err := DB.Exec("UPDATE portfolio_history SET date = ?, total_amount = ?, asset_summary_json = ? WHERE id = ? AND user_id = ?", h.Date, h.TotalAmount, h.AssetSummaryJSON, h.ID, h.UserID)
 	return err
 }
 

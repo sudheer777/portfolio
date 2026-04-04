@@ -63,6 +63,14 @@ export const calculateTaxesNewRegime = (ctc: number) => {
     return { monthlyInHand: (ctc - epf - totalTax) / 12, totalTax, epf, taxableIncome };
 };
 
+export const calculateTaxOnLumpSum = (baseTaxableIncome: number, lumpSum: number) => {
+    const newTaxableIncome = baseTaxableIncome + lumpSum;
+    const basicTax = getBasicTax(newTaxableIncome);
+    const surcharge = getSurchargeWithRelief(newTaxableIncome, basicTax);
+    const cess = (basicTax + Math.max(0, surcharge)) * 0.04;
+    return basicTax + Math.max(0, surcharge) + cess;
+};
+
 export const FICrossoverCard: React.FC<{ expectedHike?: number }> = ({ expectedHike = 10 }) => {
     const [loading, setLoading] = useState(true);
     const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
