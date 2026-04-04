@@ -71,21 +71,23 @@ export const calculateTaxOnLumpSum = (baseTaxableIncome: number, lumpSum: number
     return basicTax + Math.max(0, surcharge) + cess;
 };
 
-export const FICrossoverCard: React.FC<{ expectedHike?: number }> = ({ expectedHike = 10 }) => {
+export const FICrossoverCard: React.FC<{ expectedHike?: number, portfolioData?: PortfolioSummary | null }> = ({ expectedHike = 10, portfolioData }) => {
     const [loading, setLoading] = useState(true);
     const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
-    const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
+    const [fetchedPortfolio, setFetchedPortfolio] = useState<PortfolioSummary | null>(null);
     const [monthlySip, setMonthlySip] = useState(0);
     const [expectedReturns, setExpectedReturns] = useState<Record<string, string>>({});
+
+    const portfolio = portfolioData || fetchedPortfolio;
 
     useEffect(() => {
         Promise.all([
             api.getJobDetails().catch(() => null),
-            api.getPortfolio().catch(() => null),
+            !portfolioData ? api.getPortfolio().catch(() => null) : Promise.resolve(null),
             api.getRebalancerConfig().catch(() => null)
         ]).then(([jd, port, configStr]) => {
             if (jd) setJobDetails(jd);
-            if (port) setPortfolio(port);
+            if (port) setFetchedPortfolio(port);
             if (configStr) {
                 try {
                     const config = JSON.parse(configStr);

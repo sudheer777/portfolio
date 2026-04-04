@@ -234,7 +234,7 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
                 />}
 
                 <div className="mt-8">
-                    <FICrossoverCard />
+                    <FICrossoverCard portfolioData={data} />
                 </div>
 
                 <div className="mt-8 border-t border-indigo-200 pt-6 space-y-8">
