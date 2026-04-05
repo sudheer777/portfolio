@@ -136,8 +136,8 @@ export default function CareerCalculator() {
     const hikeRate = (parseFloat(expectedHike) || 0) / 100;
     const projYears = parseInt(yearsToProject) || 5;
 
-    const projectionData = [];
-    const chartData = [];
+    const combinedData: any[] = [];
+    const chartData: any[] = [];
 
     // Historical chart data
     let baseVal = currentCtcVal;
@@ -154,14 +154,93 @@ export default function CareerCalculator() {
         return ((Math.pow(val / baseVal, 1 / years) - 1) * 100).toFixed(2);
     };
 
+    // Construct History Data
+    let prevHistCtc = 0;
+    let prevHistTaxData: any = null;
+
     history.forEach((h, idx) => {
         const ctc = h.ctc;
         const curDate = new Date(h.date);
+
         chartData.push({
             year: curDate.getFullYear().toString() + '-' + (curDate.getMonth() + 1),
             actual_ctc: ctc,
             cagr_since_join: idx === 0 ? null : getPointCAGR(ctc, curDate)
         });
+
+        const yos = jobDetails ? (curDate.getTime() - new Date(jobDetails.joining_date).getTime()) / (1000 * 60 * 60 * 24 * 365.25) : 0;
+        const taxData = calculateTaxesNewRegime(ctc);
+
+        const monBase = ctc / 24;
+        const daily = monBase / 30;
+
+        const grat = yos >= 4.8 ? Math.round(monBase * (15 / 26) * Math.round(yos)) : 0;
+        const leave = daily * (parseFloat(accruedLeaves) || 0);
+
+        const taxWithLeave = calculateTaxOnLumpSum(taxData.taxableIncome, leave);
+        const inHandLeave = leave - (taxWithLeave - taxData.totalTax);
+
+        const taxableGrat = Math.max(0, grat - 2000000);
+        const taxWithGrat = calculateTaxOnLumpSum(taxData.taxableIncome, taxableGrat);
+        const inHandGrat = grat - (taxWithGrat - taxData.totalTax);
+
+        let row: any = {
+            year: `Act. ${curDate.getFullYear()}-${(curDate.getMonth() + 1).toString().padStart(2, '0')}`,
+            event: h.event_type,
+            ctc: ctc,
+            inHand: taxData.monthlyInHand,
+            tax: taxData.totalTax,
+            epf: taxData.epf,
+            gratuity: grat,
+            inHandGratuity: inHandGrat,
+            leave: leave,
+            inHandLeave: inHandLeave,
+            isFirst: false,
+            isPast: true,
+        };
+
+        if (idx === 0 || !prevHistTaxData) {
+            row.isFirst = true;
+            row.grossIncrease = 0;
+            row.inHandIncrease = 0;
+            row.taxIncrease = 0;
+            row.epfIncrease = 0;
+            row.gratuityIncrease = 0;
+            row.gratuityNetIncrease = 0;
+            row.leaveIncrease = 0;
+            row.leaveNetIncrease = 0;
+            row.totalGrossIncrease = 0;
+            row.totalNetIncrease = 0;
+        } else {
+            row.grossIncrease = ctc - prevHistCtc;
+            row.inHandIncrease = taxData.monthlyInHand - prevHistTaxData.monthlyInHand;
+            row.taxIncrease = taxData.totalTax - prevHistTaxData.totalTax;
+            row.epfIncrease = taxData.epf - prevHistTaxData.epf;
+
+            const prevMonBase = prevHistCtc / 24;
+            const prevDaily = prevMonBase / 30;
+            const gratAtZeroHike = yos >= 4.8 ? Math.round(prevMonBase * (15 / 26) * Math.round(yos)) : 0;
+            const leaveAtZeroHike = prevDaily * (parseFloat(accruedLeaves) || 0);
+
+            const taxWithGrat0 = calculateTaxOnLumpSum(prevHistTaxData.taxableIncome, Math.max(0, gratAtZeroHike - 2000000));
+            const inHandGrat0 = gratAtZeroHike - (taxWithGrat0 - prevHistTaxData.totalTax);
+
+            const taxWithLeave0 = calculateTaxOnLumpSum(prevHistTaxData.taxableIncome, leaveAtZeroHike);
+            const inHandLeave0 = leaveAtZeroHike - (taxWithLeave0 - prevHistTaxData.totalTax);
+
+            row.gratuityIncrease = grat - gratAtZeroHike;
+            row.gratuityNetIncrease = inHandGrat - inHandGrat0;
+            row.leaveIncrease = leave - leaveAtZeroHike;
+            row.leaveNetIncrease = inHandLeave - inHandLeave0;
+
+            row.totalGrossIncrease = row.grossIncrease + row.gratuityIncrease + row.leaveIncrease;
+            row.totalNetIncrease = (row.inHandIncrease * 12) + row.gratuityNetIncrease + row.leaveNetIncrease;
+        }
+
+        combinedData.push(row);
+
+        prevHistCtc = ctc;
+        prevHistTaxData = taxData;
     });
 
     const lastActCtc = history.length > 0 ? history[history.length - 1].ctc : currentCtcVal;
@@ -199,44 +278,40 @@ export default function CareerCalculator() {
         const simTaxWithGrat = calculateTaxOnLumpSum(simTaxData.taxableIncome, simTaxableGrat);
         const simInHandGrat = simGrat - (simTaxWithGrat - simTaxData.totalTax);
 
-        // Calculate the Increment Values:
-        // 1. Gross deltas
         const grossIncrease = simCtc - prevCtc;
         const inhandIncreaseMonthly = simTaxData.monthlyInHand - prevInHandMonthly;
 
         const taxIncreaseYearly = simTaxData.totalTax - prevTaxYearly;
         const epfIncreaseYearly = simTaxData.epf - prevEpfYearly;
 
-        // 2. Gratuity and Leave calculated at 0% Hike
         const prevMonBase = prevCtc / 24;
         const prevDaily = prevMonBase / 30;
         const gratAtZeroHike = simYos >= 4.8 ? Math.round(prevMonBase * (15 / 26) * Math.round(simYos)) : 0;
         const leaveAtZeroHike = prevDaily * (parseFloat(accruedLeaves) || 0);
 
-        // Nets at 0% hike
         const taxWithGrat0 = calculateTaxOnLumpSum(prevSimTaxData.taxableIncome, Math.max(0, gratAtZeroHike - 2000000));
         const inHandGrat0 = gratAtZeroHike - (taxWithGrat0 - prevTaxYearly);
 
         const taxWithLeave0 = calculateTaxOnLumpSum(prevSimTaxData.taxableIncome, leaveAtZeroHike);
         const inHandLeave0 = leaveAtZeroHike - (taxWithLeave0 - prevTaxYearly);
 
-        const gratuityIncrease = simGrat - gratAtZeroHike; // Gross Gratuity increase
-        const gratuityNetIncrease = simInHandGrat - inHandGrat0; // Net Gratuity increase
-        const leaveIncrease = simLeave - leaveAtZeroHike; // Gross Leave increase
-        const leaveNetIncrease = simInHandLeave - inHandLeave0; // Net Leave increase
+        const gratuityIncrease = simGrat - gratAtZeroHike;
+        const gratuityNetIncrease = simInHandGrat - inHandGrat0;
+        const leaveIncrease = simLeave - leaveAtZeroHike;
+        const leaveNetIncrease = simInHandLeave - inHandLeave0;
 
         const totalGrossIncrease = grossIncrease + gratuityIncrease + leaveIncrease;
         const totalNetIncrease = (inhandIncreaseMonthly * 12) + gratuityNetIncrease + leaveNetIncrease;
 
-        projectionData.push({
-            year: `+${i} Year`,
+        combinedData.push({
+            year: `Proj. +${i} Yr`,
             ctc: simCtc,
             grossIncrease: grossIncrease,
-            inHand: simTaxData.monthlyInHand, // Per month
-            inHandIncrease: inhandIncreaseMonthly, // Per month
-            tax: simTaxData.totalTax,         // Per year
+            inHand: simTaxData.monthlyInHand,
+            inHandIncrease: inhandIncreaseMonthly,
+            tax: simTaxData.totalTax,
             taxIncrease: taxIncreaseYearly,
-            epf: simTaxData.epf,              // Per year
+            epf: simTaxData.epf,
             epfIncrease: epfIncreaseYearly,
             gratuity: simGrat,
             gratuityIncrease: gratuityIncrease,
@@ -247,7 +322,9 @@ export default function CareerCalculator() {
             leaveNetIncrease: leaveNetIncrease,
             inHandLeave: simInHandLeave,
             totalGrossIncrease,
-            totalNetIncrease
+            totalNetIncrease,
+            isFirst: false,
+            isPast: false
         });
 
         chartData.push({
@@ -256,7 +333,6 @@ export default function CareerCalculator() {
             cagr_since_join: getPointCAGR(simCtc, projDate)
         });
 
-        // Set previous states for the next year
         prevCtc = simCtc;
         prevSimTaxData = simTaxData;
         prevInHandMonthly = simTaxData.monthlyInHand;
@@ -488,7 +564,7 @@ export default function CareerCalculator() {
                                     <thead className="bg-gray-100 text-gray-600">
                                         <tr>
                                             <th className="p-2">Timeline</th>
-                                            <th className="p-2">Proj. CTC</th>
+                                            <th className="p-2">CTC</th>
                                             <th className="p-2">In-Hand Salary/mo</th>
                                             <th className="p-2">Yearly Tax</th>
                                             <th className="p-2">Yearly PF</th>
@@ -499,52 +575,71 @@ export default function CareerCalculator() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {projectionData.map((pd, index) => (
-                                            <tr key={index} className="border-b">
-                                                <td className="p-2 text-indigo-600 font-medium">{pd.year}</td>
+                                        {combinedData.filter((d: any) => !d.isPast).map((pd: any, index: number) => (
+                                            <tr key={index} className={`border-b ${pd.isPast ? 'bg-orange-50/30' : ''}`}>
+                                                <td className={`p-2 font-medium ${pd.isPast ? 'text-orange-700' : 'text-indigo-600'}`}>
+                                                    {pd.year}
+                                                    {pd.event && <div className="text-[10px] text-gray-500">{pd.event}</div>}
+                                                </td>
                                                 <td className="p-2 font-bold">
                                                     {formatCurrency(pd.ctc)}
-                                                    <div className="text-[10px] text-green-600 font-semibold mt-0.5 whitespace-nowrap">▲ {formatCurrency(pd.grossIncrease)} Gross</div>
+                                                    {!pd.isFirst && <div className="text-[10px] text-green-600 font-semibold mt-0.5 whitespace-nowrap">▲ {formatCurrency(pd.grossIncrease)} Gross</div>}
                                                 </td>
                                                 <td className="p-2 text-orange-600 font-medium">
                                                     {formatCurrency(pd.inHand)}
-                                                    <div className="text-[10px] text-green-600 font-semibold mt-0.5 whitespace-nowrap">▲ {formatCurrency(pd.inHandIncrease)} /mo In-Hand</div>
+                                                    {!pd.isFirst && <div className="text-[10px] text-green-600 font-semibold mt-0.5 whitespace-nowrap">▲ {formatCurrency(pd.inHandIncrease)} /mo In-Hand</div>}
                                                 </td>
                                                 <td className="p-2 text-red-600">
                                                     {formatCurrency(pd.tax)}
-                                                    <div className="text-[10px] text-red-400 font-semibold mt-0.5 whitespace-nowrap">▼ -{formatCurrency(pd.taxIncrease)} Tax Heat</div>
+                                                    {!pd.isFirst && <div className="text-[10px] text-red-400 font-semibold mt-0.5 whitespace-nowrap">{pd.taxIncrease > 0 ? '▼ -' : '▲ +'}{formatCurrency(Math.abs(pd.taxIncrease))} Tax Heat</div>}
                                                 </td>
                                                 <td className="p-2 text-teal-600">
                                                     {formatCurrency(pd.epf)}
-                                                    <div className="text-[10px] text-teal-500 font-semibold mt-0.5 whitespace-nowrap">▲ {formatCurrency(pd.epfIncrease)} Forced EPF</div>
+                                                    {!pd.isFirst && <div className="text-[10px] text-teal-500 font-semibold mt-0.5 whitespace-nowrap">▲ {formatCurrency(pd.epfIncrease)} Forced EPF</div>}
                                                 </td>
                                                 <td className="p-2 font-medium text-green-600">
                                                     {formatCurrency(pd.inHandGratuity)}
                                                     <div className="text-[10px] text-gray-400 font-normal mt-0.5">Gross: {formatCurrency(pd.gratuity)}</div>
-                                                    <div className="text-[9px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.gratuityNetIncrease)} Net Incr</div>
-                                                    <div className="text-[9px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.gratuityIncrease)} Gross Incr</div>
+                                                    {!pd.isFirst && (
+                                                        <>
+                                                            <div className="text-[9px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.gratuityNetIncrease)} Net Incr</div>
+                                                            <div className="text-[9px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.gratuityIncrease)} Gross Incr</div>
+                                                        </>
+                                                    )}
                                                 </td>
                                                 <td className="p-2 font-medium text-blue-600">
                                                     {formatCurrency(pd.inHandLeave)}
                                                     <div className="text-[10px] text-gray-400 font-normal mt-0.5">Gross: {formatCurrency(pd.leave)}</div>
-                                                    <div className="text-[9px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.leaveNetIncrease)} Net Incr</div>
-                                                    <div className="text-[9px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.leaveIncrease)} Gross Incr</div>
+                                                    {!pd.isFirst && (
+                                                        <>
+                                                            <div className="text-[9px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.leaveNetIncrease)} Net Incr</div>
+                                                            <div className="text-[9px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.leaveIncrease)} Gross Incr</div>
+                                                        </>
+                                                    )}
                                                 </td>
                                                 <td className="p-2 font-extrabold text-gray-900 bg-indigo-50 border-l border-indigo-100">
-                                                    <span className="text-green-700">+ {formatCurrency(pd.totalGrossIncrease)}</span>
-                                                    <div className="text-[9px] text-gray-500 font-normal mt-1 whitespace-nowrap">
-                                                        <div>CTC <span className="text-green-600 font-medium">+{formatCurrency(pd.grossIncrease)}</span></div>
-                                                        <div>Grat <span className="text-green-600 font-medium">+{formatCurrency(pd.gratuityIncrease)}</span></div>
-                                                        <div>Leave <span className="text-green-600 font-medium">+{formatCurrency(pd.leaveIncrease)}</span></div>
-                                                    </div>
+                                                    {!pd.isFirst ? (
+                                                        <>
+                                                            <span className="text-green-700">+ {formatCurrency(pd.totalGrossIncrease)}</span>
+                                                            <div className="text-[9px] text-gray-500 font-normal mt-1 whitespace-nowrap">
+                                                                <div>CTC <span className="text-green-600 font-medium">+{formatCurrency(pd.grossIncrease)}</span></div>
+                                                                <div>Grat <span className="text-green-600 font-medium">+{formatCurrency(pd.gratuityIncrease)}</span></div>
+                                                                <div>Leave <span className="text-green-600 font-medium">+{formatCurrency(pd.leaveIncrease)}</span></div>
+                                                            </div>
+                                                        </>
+                                                    ) : <span className="text-gray-400 italic font-medium">Baseline</span>}
                                                 </td>
                                                 <td className="p-2 font-extrabold text-gray-900 bg-indigo-50">
-                                                    <span className="text-green-700">+ {formatCurrency(pd.totalNetIncrease)}</span>
-                                                    <div className="text-[9px] text-gray-500 font-normal mt-1 whitespace-nowrap">
-                                                        <div>Salary (Yr) <span className="text-green-600 font-medium">+{formatCurrency(pd.inHandIncrease * 12)}</span></div>
-                                                        <div>Grat <span className="text-green-600 font-medium">+{formatCurrency(pd.gratuityNetIncrease)}</span></div>
-                                                        <div>Leave <span className="text-green-600 font-medium">+{formatCurrency(pd.leaveNetIncrease)}</span></div>
-                                                    </div>
+                                                    {!pd.isFirst ? (
+                                                        <>
+                                                            <span className="text-green-700">+ {formatCurrency(pd.totalNetIncrease)}</span>
+                                                            <div className="text-[9px] text-gray-500 font-normal mt-1 whitespace-nowrap">
+                                                                <div>Salary (Yr) <span className="text-green-600 font-medium">+{formatCurrency(pd.inHandIncrease * 12)}</span></div>
+                                                                <div>Grat <span className="text-green-600 font-medium">+{formatCurrency(pd.gratuityNetIncrease)}</span></div>
+                                                                <div>Leave <span className="text-green-600 font-medium">+{formatCurrency(pd.leaveNetIncrease)}</span></div>
+                                                            </div>
+                                                        </>
+                                                    ) : <span className="text-gray-400 italic font-medium">Baseline</span>}
                                                 </td>
                                             </tr>
                                         ))}
@@ -619,6 +714,98 @@ export default function CareerCalculator() {
                                     </LineChart>
                                 </ResponsiveContainer>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* 5. Salary History Unified Table */}
+                    <div className="mt-8">
+                        <h3 className="text-xl font-bold border-b pb-2 mb-4 text-gray-800">Historical Growth Metrics</h3>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-sm text-left">
+                                <thead className="bg-gray-100 text-gray-600">
+                                    <tr>
+                                        <th className="p-2">Timeline</th>
+                                        <th className="p-2">CTC</th>
+                                        <th className="p-2">In-Hand Salary/mo</th>
+                                        <th className="p-2">Yearly Tax</th>
+                                        <th className="p-2">Yearly PF</th>
+                                        <th className="p-2">Gratuity Value</th>
+                                        <th className="p-2">{accruedLeaves} Leaves Value</th>
+                                        <th className="p-2 bg-indigo-50 border-l border-indigo-100">Total Increment (Gross)</th>
+                                        <th className="p-2 bg-indigo-50">Total Increment (Net)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {combinedData.filter((d: any) => d.isPast).reverse().map((pd: any, index: number) => (
+                                        <tr key={index} className={`border-b ${pd.isPast ? 'bg-orange-50/30' : ''}`}>
+                                            <td className={`p-2 font-medium ${pd.isPast ? 'text-orange-700' : 'text-indigo-600'}`}>
+                                                {pd.year}
+                                                {pd.event && <div className="text-[10px] text-gray-500">{pd.event}</div>}
+                                            </td>
+                                            <td className="p-2 font-bold">
+                                                {formatCurrency(pd.ctc)}
+                                                {!pd.isFirst && <div className="text-[10px] text-green-600 font-semibold mt-0.5 whitespace-nowrap">▲ {formatCurrency(pd.grossIncrease)} Gross</div>}
+                                            </td>
+                                            <td className="p-2 text-orange-600 font-medium">
+                                                {formatCurrency(pd.inHand)}
+                                                {!pd.isFirst && <div className="text-[10px] text-green-600 font-semibold mt-0.5 whitespace-nowrap">▲ {formatCurrency(pd.inHandIncrease)} /mo In-Hand</div>}
+                                            </td>
+                                            <td className="p-2 text-red-600">
+                                                {formatCurrency(pd.tax)}
+                                                {!pd.isFirst && <div className="text-[10px] text-red-400 font-semibold mt-0.5 whitespace-nowrap">{pd.taxIncrease > 0 ? '▼ -' : '▲ +'}{formatCurrency(Math.abs(pd.taxIncrease))} Tax Heat</div>}
+                                            </td>
+                                            <td className="p-2 text-teal-600">
+                                                {formatCurrency(pd.epf)}
+                                                {!pd.isFirst && <div className="text-[10px] text-teal-500 font-semibold mt-0.5 whitespace-nowrap">▲ {formatCurrency(pd.epfIncrease)} Forced EPF</div>}
+                                            </td>
+                                            <td className="p-2 font-medium text-green-600">
+                                                {formatCurrency(pd.inHandGratuity)}
+                                                <div className="text-[10px] text-gray-400 font-normal mt-0.5">Gross: {formatCurrency(pd.gratuity)}</div>
+                                                {!pd.isFirst && (
+                                                    <>
+                                                        <div className="text-[9px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.gratuityNetIncrease)} Net Incr</div>
+                                                        <div className="text-[9px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.gratuityIncrease)} Gross Incr</div>
+                                                    </>
+                                                )}
+                                            </td>
+                                            <td className="p-2 font-medium text-blue-600">
+                                                {formatCurrency(pd.inHandLeave)}
+                                                <div className="text-[10px] text-gray-400 font-normal mt-0.5">Gross: {formatCurrency(pd.leave)}</div>
+                                                {!pd.isFirst && (
+                                                    <>
+                                                        <div className="text-[9px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.leaveNetIncrease)} Net Incr</div>
+                                                        <div className="text-[9px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.leaveIncrease)} Gross Incr</div>
+                                                    </>
+                                                )}
+                                            </td>
+                                            <td className="p-2 font-extrabold text-gray-900 bg-indigo-50 border-l border-indigo-100">
+                                                {!pd.isFirst ? (
+                                                    <>
+                                                        <span className="text-green-700">+ {formatCurrency(pd.totalGrossIncrease)}</span>
+                                                        <div className="text-[9px] text-gray-500 font-normal mt-1 whitespace-nowrap">
+                                                            <div>CTC <span className="text-green-600 font-medium">+{formatCurrency(pd.grossIncrease)}</span></div>
+                                                            <div>Grat <span className="text-green-600 font-medium">+{formatCurrency(pd.gratuityIncrease)}</span></div>
+                                                            <div>Leave <span className="text-green-600 font-medium">+{formatCurrency(pd.leaveIncrease)}</span></div>
+                                                        </div>
+                                                    </>
+                                                ) : <span className="text-gray-400 italic font-medium">Baseline</span>}
+                                            </td>
+                                            <td className="p-2 font-extrabold text-gray-900 bg-indigo-50">
+                                                {!pd.isFirst ? (
+                                                    <>
+                                                        <span className="text-green-700">+ {formatCurrency(pd.totalNetIncrease)}</span>
+                                                        <div className="text-[9px] text-gray-500 font-normal mt-1 whitespace-nowrap">
+                                                            <div>Salary (Yr) <span className="text-green-600 font-medium">+{formatCurrency(pd.inHandIncrease * 12)}</span></div>
+                                                            <div>Grat <span className="text-green-600 font-medium">+{formatCurrency(pd.gratuityNetIncrease)}</span></div>
+                                                            <div>Leave <span className="text-green-600 font-medium">+{formatCurrency(pd.leaveNetIncrease)}</span></div>
+                                                        </div>
+                                                    </>
+                                                ) : <span className="text-gray-400 italic font-medium">Baseline</span>}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </>

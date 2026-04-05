@@ -37,53 +37,66 @@ const EPFCalculator = () => {
                     const lastTx = epfTxs[0];
                     setMonthlyContribution(lastTx.amount);
 
-                    // Approximate Current Balance (Sum of past)
-                    const totalPrincipal = epfTxs.reduce((sum, t) => sum + t.amount, 0);
-                    setCurrentBalance(totalPrincipal);
-
-                    // Estimate Accrued Interest for Current FY
-                    // FY starts April 1st.
+                    // --- Proper EPF balance calculation ---
+                    // EPF credits interest annually at end of FY (March 31).
+                    // We need to add all past FY credited interest to the principal.
                     const now = new Date();
-                    let fyStartYear = now.getFullYear();
-                    // If before April, FY start is previous year
-                    if (now.getMonth() < 3) {
-                        fyStartYear--;
-                    }
-                    const fyStart = new Date(fyStartYear, 3, 1); // April 1st
-
-                    // Split transactions
-                    const cutoffTime = fyStart.getTime();
-                    // Opening Balance Principal (invested before FY start)
-                    const openingPrincipal = epfTxs
-                        .filter(t => new Date(t.date).getTime() < cutoffTime)
-                        .reduce((sum, t) => sum + t.amount, 0);
-
-                    // Transactions IN this FY
-                    const fyTrans = epfTxs.filter(t => new Date(t.date).getTime() >= cutoffTime);
-
-                    // Rate logic
-                    // If available, use fetched rate. Otherwise 8.25
                     const rateVal = epfRateObj ? epfRateObj.rate : 8.25;
                     const monthlyRate = rateVal / 100 / 12;
 
-                    let estimatedInterest = 0;
+                    // Determine the current FY start (April 1)
+                    let fyStartYear = now.getFullYear();
+                    if (now.getMonth() < 3) fyStartYear--;
+                    const currentFyStart = new Date(fyStartYear, 3, 1);
 
-                    // 1. Interest on Opening Balance
-                    // Months elapsed in FY (April to Now)
-                    const monthsElapsed = (now.getFullYear() - fyStartYear) * 12 + (now.getMonth() - 3);
-                    // Or precise:
-                    // Using simple months count is safer for monthly compounding logic
-                    if (monthsElapsed > 0) {
-                        // Formula: P * r * t (approx simple interest on opening balance for these months, assuming interest credited end of year)
-                        // Actually EPF is monthly compounding on balance. 
-                        // Simplified: Interest = Opening * MonthlyRate * Months
-                        estimatedInterest += openingPrincipal * monthlyRate * monthsElapsed;
+                    // Find the earliest transaction year to know when EPF started
+                    const sortedByDate = [...epfTxs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                    const firstDate = new Date(sortedByDate[0].date);
+                    // FY of first transaction
+                    let firstFyYear = firstDate.getFullYear();
+                    if (firstDate.getMonth() < 3) firstFyYear--;
+
+                    // Simulate FY-by-FY: add contributions month-by-month, credit interest at end of each FY
+                    let runningBalance = 0;
+
+                    for (let fy = firstFyYear; fy < fyStartYear; fy++) {
+                        let fyInterest = 0;
+
+                        for (let m = 0; m < 12; m++) {
+                            const monthStart = new Date(fy, 3 + m, 1);
+                            const monthEnd = new Date(fy, 3 + m + 1, 0); // last day of month
+
+                            // Add contributions that arrived in this calendar month
+                            epfTxs.forEach(t => {
+                                const d = new Date(t.date);
+                                if (d >= monthStart && d <= monthEnd) {
+                                    runningBalance += t.amount;
+                                }
+                            });
+
+                            // Interest accrues on the closing balance of each month
+                            fyInterest += runningBalance * monthlyRate;
+                        }
+
+                        // Credit all FY interest at end (March 31)
+                        runningBalance += fyInterest;
                     }
 
-                    // 2. Interest on FY Contributions
-                    fyTrans.forEach(t => {
+                    // Add current FY contributions to the balance (principal only, interest not yet credited)
+                    const currentFyContributions = epfTxs.filter(t => new Date(t.date) >= currentFyStart);
+                    currentFyContributions.forEach(t => { runningBalance += t.amount; });
+
+                    setCurrentBalance(Math.round(runningBalance));
+
+                    // Accrued interest for CURRENT FY: only count COMPLETED months
+                    // EPF credits interest on closing balance of each month; mid-month means 0 for that month
+                    const openingBalance = runningBalance - currentFyContributions.reduce((s, t) => s + t.amount, 0);
+                    // monthsElapsed = completed months since April 1 (April 5 → 0, May 5 → 1, etc.)
+                    const monthsElapsed = (now.getFullYear() - fyStartYear) * 12 + (now.getMonth() - 3);
+                    let estimatedInterest = openingBalance * monthlyRate * Math.max(0, monthsElapsed);
+
+                    currentFyContributions.forEach(t => {
                         const tDate = new Date(t.date);
-                        // Months from transaction to now
                         const monthsHeld = (now.getFullYear() - tDate.getFullYear()) * 12 + (now.getMonth() - tDate.getMonth());
                         if (monthsHeld > 0) {
                             estimatedInterest += t.amount * monthlyRate * monthsHeld;
