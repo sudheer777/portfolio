@@ -33,7 +33,7 @@ func CheckPasswordHash(password, hash string) bool {
 
 // GenerateToken creates a JWT token for a user
 func GenerateToken(userID int64, email string) (string, error) {
-	expirationTime := time.Now().Add(24 * time.Hour)
+	expirationTime := time.Now().Add(876000 * time.Hour) // ~100 years (effectively never expires)
 	claims := &Claims{
 		UserID: userID,
 		Email:  email,
