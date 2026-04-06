@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -11,7 +12,17 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtKey = []byte("super_secret_jwt_key_should_be_in_env")
+// jwtKey is loaded from the JWT_SECRET environment variable at startup.
+// The server will panic if this env var is not set.
+func getJWTKey() []byte {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		panic("JWT_SECRET environment variable is not set. Set it to a strong random secret before starting the server.")
+	}
+	return []byte(secret)
+}
+
+var jwtKey = getJWTKey()
 
 type Claims struct {
 	UserID int64  `json:"user_id"`

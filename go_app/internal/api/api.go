@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -304,18 +305,18 @@ func (h *Handler) DeleteTransaction(c *gin.Context) {
 }
 
 func (h *Handler) GetUsers(c *gin.Context) {
-	users, err := db.GetAllUsers()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	// Convert map to list
-	var list []models.User
-	for _, u := range users {
-		list = append(list, u)
+	authUserID := userID.(int64)
+	u, err := db.GetUserByID(authUserID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
 	}
-	sort.Slice(list, func(i, j int) bool { return list[i].ID < list[j].ID })
-	c.JSON(http.StatusOK, list)
+	c.JSON(http.StatusOK, []models.User{u})
 }
 
 func (h *Handler) GetMe(c *gin.Context) {
@@ -426,6 +427,13 @@ func (h *Handler) Login(c *gin.Context) {
 }
 
 func (h *Handler) Register(c *gin.Context) {
+	// Require a valid invite code to prevent unauthorized signups.
+	inviteCode := os.Getenv("INVITE_CODE")
+	if inviteCode != "" && c.GetHeader("X-Invite-Code") != inviteCode {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Registration is closed"})
+		return
+	}
+
 	var input struct {
 		Name     string `json:"name"`
 		Email    string `json:"email"`

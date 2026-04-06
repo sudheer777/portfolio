@@ -1,9 +1,19 @@
 package auth
 
 import (
+	"os"
 	"testing"
 	"time"
 )
+
+// TestMain sets up test environment variables before any tests run.
+func TestMain(m *testing.M) {
+	os.Setenv("JWT_SECRET", "test-secret-key-for-unit-tests-only")
+	// Re-init jwtKey for tests (package var is set before TestMain runs,
+	// so we patch jwtKey directly)
+	jwtKey = []byte(os.Getenv("JWT_SECRET"))
+	m.Run()
+}
 
 func TestGenerateAndValidateToken(t *testing.T) {
 	userID := int64(42)
