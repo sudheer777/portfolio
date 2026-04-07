@@ -70,6 +70,7 @@ func main() {
 	// Protected Routes
 	apiGroup := r.Group("/api")
 	apiGroup.Use(auth.AuthMiddleware())
+	apiGroup.Use(api.UserDBMiddleware())
 	{
 		apiGroup.GET("/portfolio", h.GetPortfolio)
 		apiGroup.POST("/transactions", h.AddTransaction)
@@ -80,6 +81,8 @@ func main() {
 		apiGroup.GET("/me", h.GetMe)
 		apiGroup.PUT("/user/dob", h.UpdateUserDOB)
 		apiGroup.PUT("/user/fire-settings", h.UpdateFireSettings)
+		apiGroup.PUT("/user/migrate-db", h.MigrateDB)
+		apiGroup.PUT("/user/password", h.ChangePassword)
 		apiGroup.GET("/customers", h.GetCustomers)
 		apiGroup.POST("/portfolio/snapshot", h.SaveSnapshot)
 		apiGroup.POST("/history", h.AddHistory)

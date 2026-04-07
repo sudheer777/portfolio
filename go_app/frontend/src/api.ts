@@ -6,15 +6,20 @@ const AUTH_BASE = "";
 // Helper to add auth header
 const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const token = localStorage.getItem("token");
-    const headers = {
-        ...options.headers,
+    const tursoURL = localStorage.getItem("turso_url") || "";
+    const tursoToken = localStorage.getItem("turso_token") || "";
+    const headers: Record<string, string> = {
+        ...(options.headers as Record<string, string>),
         "Authorization": token ? `Bearer ${token}` : "",
     };
-    return fetch(url, { ...options, headers: headers as any }).then(res => {
+    if (tursoURL) headers["X-Turso-URL"] = tursoURL;
+    if (tursoToken) headers["X-Turso-Token"] = tursoToken;
+    return fetch(url, { ...options, headers }).then(res => {
         if (res.status === 401) {
-            // Token expired or invalid
             localStorage.removeItem("token");
-            window.location.reload(); // Reload triggers App.tsx to see !token and show Login
+            localStorage.removeItem("turso_url");
+            localStorage.removeItem("turso_token");
+            window.location.reload();
         }
         return res;
     });
@@ -34,14 +39,19 @@ export const api = {
         if (!res.ok) throw new Error("Login failed");
         const data = await res.json();
         localStorage.setItem("token", data.token);
+        // BYODB: store Turso credentials if the user has their own DB configured
+        if (data.turso_url) localStorage.setItem("turso_url", data.turso_url);
+        else localStorage.removeItem("turso_url");
+        if (data.turso_token) localStorage.setItem("turso_token", data.turso_token);
+        else localStorage.removeItem("turso_token");
         return data;
     },
 
-    register: async (name: string, email: string, password: string): Promise<any> => {
+    register: async (name: string, email: string, password: string, tursoUrl?: string, tursoToken?: string): Promise<any> => {
         const res = await fetch(`${AUTH_BASE}/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, email, password }),
+            body: JSON.stringify({ name, email, password, turso_url: tursoUrl || "", turso_token: tursoToken || "" }),
         });
         if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
@@ -50,8 +60,44 @@ export const api = {
         return res.json();
     },
 
+    migrateDB: async (currentPassword: string, tursoUrl: string, tursoToken: string, deleteOldData: boolean): Promise<any> => {
+        const res = await fetchWithAuth(`${API_BASE}/user/migrate-db`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                current_password: currentPassword,
+                turso_url: tursoUrl,
+                turso_token: tursoToken,
+                delete_old_data: deleteOldData
+            }),
+        });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || "Migration failed");
+        }
+        return res.json();
+    },
+
+    changePassword: async (currentPassword: string, newPassword: string): Promise<any> => {
+        const res = await fetchWithAuth(`${API_BASE}/user/password`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                current_password: currentPassword,
+                new_password: newPassword,
+            }),
+        });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || "Password change failed");
+        }
+        return res.json();
+    },
+
     logout: () => {
         localStorage.removeItem("token");
+        localStorage.removeItem("turso_url");
+        localStorage.removeItem("turso_token");
     },
 
     getPortfolio: async (): Promise<PortfolioSummary> => {

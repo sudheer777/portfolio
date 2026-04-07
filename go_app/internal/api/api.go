@@ -13,21 +13,49 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"portfolio/internal/auth"
+	"portfolio/internal/crypto"
 	"portfolio/internal/db"
 	"portfolio/internal/models"
 	"portfolio/internal/service"
 )
 
-type Handler struct {
-	// Service dependencies could go here
+type Handler struct{}
+
+func NewHandler() *Handler { return &Handler{} }
+
+// storeFromCtx returns the per-user Store if BYODB is configured for this request,
+// otherwise falls back to the shared admin Default store.
+func storeFromCtx(c *gin.Context) *db.Store {
+	if s, ok := c.Get("userStore"); ok && s != nil {
+		return s.(*db.Store)
+	}
+	return db.Default
 }
 
-func NewHandler() *Handler {
-	return &Handler{}
+// UserDBMiddleware reads X-Turso-URL and X-Turso-Token headers.
+// If present, it opens a per-user DB connection and injects it as "userStore" in the context.
+// If absent, the request falls back to the admin Default store.
+func UserDBMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tursoURL := c.GetHeader("X-Turso-URL")
+		tursoToken := c.GetHeader("X-Turso-Token")
+		if tursoURL != "" && tursoToken != "" {
+			userStore, err := db.ConnectUserDB(tursoURL, tursoToken)
+			if err != nil {
+				log.Printf("UserDBMiddleware: failed to connect user DB: %v", err)
+				// Fall back to admin DB instead of failing the request
+			} else {
+				c.Set("userStore", userStore)
+				defer userStore.DB.Close()
+			}
+		}
+		c.Next()
+	}
 }
 
-func (h *Handler) generatePortfolioSummary(authUserID int64) (models.PortfolioSummary, error) {
-	transactions, err := db.GetTransactionsByUserID(authUserID)
+func (h *Handler) generatePortfolioSummary(c *gin.Context, authUserID int64) (models.PortfolioSummary, error) {
+	s := storeFromCtx(c)
+	transactions, err := s.GetTransactionsByUserID(authUserID)
 	if err != nil {
 		return models.PortfolioSummary{}, err
 	}
@@ -147,7 +175,7 @@ func (h *Handler) GetPortfolio(c *gin.Context) {
 	userID, _ := c.Get("userID")
 	authUserID := userID.(int64)
 
-	summary, err := h.generatePortfolioSummary(authUserID)
+	summary, err := h.generatePortfolioSummary(c, authUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch portfolio"})
 		return
@@ -200,7 +228,7 @@ func (h *Handler) AddTransaction(c *gin.Context) {
 		CustomerName:    cName,
 	}
 
-	if err := db.AddTransaction(tx); err != nil {
+	if err := storeFromCtx(c).AddTransaction(tx); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save transaction"})
 		return
 	}
@@ -217,9 +245,9 @@ func (h *Handler) GetTransactions(c *gin.Context) {
 	var err error
 
 	if customerName != "" {
-		transactions, err = db.GetTransactionsByCustomer(authUserID, customerName)
+		transactions, err = storeFromCtx(c).GetTransactionsByCustomer(authUserID, customerName)
 	} else {
-		transactions, err = db.GetTransactionsByUserID(authUserID)
+		transactions, err = storeFromCtx(c).GetTransactionsByUserID(authUserID)
 	}
 
 	if err != nil {
@@ -280,7 +308,7 @@ func (h *Handler) UpdateTransaction(c *gin.Context) {
 	}
 
 	// NOTE: UpdateTransaction in DB doesn't touch UserID, so isolation is preserved implicitly
-	if err := db.UpdateTransaction(tx); err != nil {
+	if err := storeFromCtx(c).UpdateTransaction(tx); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update transaction"})
 		return
 	}
@@ -296,7 +324,7 @@ func (h *Handler) DeleteTransaction(c *gin.Context) {
 		return
 	}
 
-	if err := db.DeleteTransaction(id); err != nil {
+	if err := storeFromCtx(c).DeleteTransaction(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete transaction"})
 		return
 	}
@@ -311,7 +339,7 @@ func (h *Handler) GetUsers(c *gin.Context) {
 		return
 	}
 	authUserID := userID.(int64)
-	u, err := db.GetUserByID(authUserID)
+	u, err := db.Default.GetUserByID(authUserID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
@@ -327,7 +355,7 @@ func (h *Handler) GetMe(c *gin.Context) {
 	}
 	authUserID := userID.(int64)
 
-	u, err := db.GetUserByID(authUserID)
+	u, err := storeFromCtx(c).GetUserByID(authUserID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
@@ -387,7 +415,7 @@ func (h *Handler) UpdateFireSettings(c *gin.Context) {
 		return
 	}
 
-	if err := db.UpdateFireSettings(authUserID, input.YearlyExpense, input.InflationRate, input.LifeExpectancy); err != nil {
+	if err := storeFromCtx(c).UpdateFireSettings(authUserID, input.YearlyExpense, input.InflationRate, input.LifeExpectancy); err != nil {
 		log.Printf("Failed to update fire settings: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update FIRE settings"})
 		return
@@ -423,7 +451,24 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": token, "user": u})
+	var tursoURL, tursoToken string
+	if len(u.KDFSalt) > 0 && len(u.EncryptedTursoURL) > 0 {
+		key := crypto.DeriveKey(input.Password, u.KDFSalt)
+
+		if decURL, err := crypto.Decrypt(u.EncryptedTursoURL, key); err == nil {
+			tursoURL = decURL
+		}
+		if decToken, err := crypto.Decrypt(u.EncryptedTursoToken, key); err == nil {
+			tursoToken = decToken
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"token":       token,
+		"user":        u,
+		"turso_url":   tursoURL,
+		"turso_token": tursoToken,
+	})
 }
 
 func (h *Handler) Register(c *gin.Context) {
@@ -435,9 +480,11 @@ func (h *Handler) Register(c *gin.Context) {
 	}
 
 	var input struct {
-		Name     string `json:"name"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Name       string `json:"name"`
+		Email      string `json:"email"`
+		Password   string `json:"password"`
+		TursoURL   string `json:"turso_url"` // Optional BYODB fields
+		TursoToken string `json:"turso_token"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -461,6 +508,26 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
+	// BYODB: if user provided their own Turso credentials, encrypt and store them.
+	if input.TursoURL != "" && input.TursoToken != "" {
+		salt, err := crypto.GenerateSalt()
+		if err == nil {
+			key := crypto.DeriveKey(input.Password, salt)
+			encURL, errU := crypto.Encrypt(input.TursoURL, key)
+			encToken, errT := crypto.Encrypt(input.TursoToken, key)
+			if errU == nil && errT == nil {
+				_ = db.Default.StoreUserTursoCredentials(id, salt, encURL, encToken)
+				// Connect to user DB and run schema migration
+				if userStore, err := db.ConnectUserDB(input.TursoURL, input.TursoToken); err == nil {
+					_ = db.MigrateUserDB(userStore)
+					// Insert bare-bones user record so foreign keys (like transactions) resolve correctly
+					_, _ = userStore.DB.Exec("INSERT OR IGNORE INTO users (id, name, email) VALUES (?, ?, ?)", id, input.Name, input.Email)
+					userStore.DB.Close()
+				}
+			}
+		}
+	}
+
 	c.JSON(http.StatusCreated, gin.H{"status": "created", "user_id": id})
 }
 
@@ -468,7 +535,7 @@ func (h *Handler) GetCustomers(c *gin.Context) {
 	userID, _ := c.Get("userID")
 	authUserID := userID.(int64)
 
-	customers, err := db.GetUniqueCustomers(authUserID)
+	customers, err := storeFromCtx(c).GetUniqueCustomers(authUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch customers"})
 		return
@@ -484,7 +551,7 @@ func (h *Handler) SaveSnapshot(c *gin.Context) {
 	userID, _ := c.Get("userID")
 	authUserID := userID.(int64)
 
-	summary, err := h.generatePortfolioSummary(authUserID)
+	summary, err := h.generatePortfolioSummary(c, authUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate portfolio summary for snapshot"})
 		return
@@ -504,7 +571,7 @@ func (h *Handler) SaveSnapshot(c *gin.Context) {
 		AssetSummaryJSON: &jsonStr,
 	}
 
-	if err := db.AddPortfolioHistory(history); err != nil {
+	if err := storeFromCtx(c).AddPortfolioHistory(history); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save snapshot"})
 		return
 	}
@@ -537,7 +604,7 @@ func (h *Handler) AddHistory(c *gin.Context) {
 		UserID:      authUserID,
 	}
 
-	if err := db.AddPortfolioHistory(history); err != nil {
+	if err := storeFromCtx(c).AddPortfolioHistory(history); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save history"})
 		return
 	}
@@ -549,7 +616,7 @@ func (h *Handler) GetHistory(c *gin.Context) {
 	userID, _ := c.Get("userID")
 	authUserID := userID.(int64)
 
-	history, err := db.GetPortfolioHistory(authUserID)
+	history, err := storeFromCtx(c).GetPortfolioHistory(authUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch history"})
 		return
@@ -593,7 +660,7 @@ func (h *Handler) UpdateHistory(c *gin.Context) {
 		UserID:      authUserID, // Identify owner
 	}
 
-	if err := db.UpdatePortfolioHistory(history); err != nil {
+	if err := storeFromCtx(c).UpdatePortfolioHistory(history); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update history"})
 		return
 	}
@@ -612,7 +679,7 @@ func (h *Handler) DeleteHistory(c *gin.Context) {
 		return
 	}
 
-	if err := db.DeletePortfolioHistory(id, authUserID); err != nil {
+	if err := storeFromCtx(c).DeletePortfolioHistory(id, authUserID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete history"})
 		return
 	}
@@ -621,7 +688,7 @@ func (h *Handler) DeleteHistory(c *gin.Context) {
 }
 
 func (h *Handler) GetRates(c *gin.Context) {
-	rates, err := db.GetAllInterestRates()
+	rates, err := storeFromCtx(c).GetAllInterestRates()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch rates"})
 		return
@@ -655,7 +722,7 @@ func (h *Handler) AddRate(c *gin.Context) {
 		Rate:   input.Rate,
 	}
 
-	if err := db.AddInterestRate(rate); err != nil {
+	if err := storeFromCtx(c).AddInterestRate(rate); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save rate"})
 		return
 	}
@@ -694,7 +761,7 @@ func (h *Handler) UpdateRate(c *gin.Context) {
 		Rate:   input.Rate,
 	}
 
-	if err := db.UpdateInterestRate(rate); err != nil {
+	if err := storeFromCtx(c).UpdateInterestRate(rate); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update rate"})
 		return
 	}
@@ -710,7 +777,7 @@ func (h *Handler) DeleteRate(c *gin.Context) {
 		return
 	}
 
-	if err := db.DeleteInterestRate(id); err != nil {
+	if err := storeFromCtx(c).DeleteInterestRate(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete rate"})
 		return
 	}
@@ -722,7 +789,7 @@ func (h *Handler) GetRebalancerConfig(c *gin.Context) {
 	userID, _ := c.Get("userID")
 	authUserID := userID.(int64)
 
-	configJSON, err := db.GetRebalancerConfig(authUserID)
+	configJSON, err := storeFromCtx(c).GetRebalancerConfig(authUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get config"})
 		return
@@ -743,7 +810,7 @@ func (h *Handler) SaveRebalancerConfig(c *gin.Context) {
 		return
 	}
 
-	if err := db.SaveRebalancerConfig(authUserID, body.Config); err != nil {
+	if err := storeFromCtx(c).SaveRebalancerConfig(authUserID, body.Config); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save config"})
 		return
 	}
@@ -755,7 +822,7 @@ func (h *Handler) GetJobDetails(c *gin.Context) {
 	userID, _ := c.Get("userID")
 	authUserID := userID.(int64)
 
-	jd, err := db.GetJobDetails(authUserID)
+	jd, err := storeFromCtx(c).GetJobDetails(authUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch job details"})
 		return
@@ -788,7 +855,7 @@ func (h *Handler) SaveJobDetails(c *gin.Context) {
 		CurrentCTC:  input.CurrentCTC,
 	}
 
-	if err := db.SaveJobDetails(jd); err != nil {
+	if err := storeFromCtx(c).SaveJobDetails(jd); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save job details"})
 		return
 	}
@@ -799,7 +866,7 @@ func (h *Handler) GetSalaryHistory(c *gin.Context) {
 	userID, _ := c.Get("userID")
 	authUserID := userID.(int64)
 
-	history, err := db.GetSalaryHistory(authUserID)
+	history, err := storeFromCtx(c).GetSalaryHistory(authUserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch salary history"})
 		return
@@ -837,7 +904,7 @@ func (h *Handler) AddSalaryHistory(c *gin.Context) {
 		EventType: input.EventType,
 	}
 
-	if err := db.AddSalaryHistory(sh); err != nil {
+	if err := storeFromCtx(c).AddSalaryHistory(sh); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save salary history"})
 		return
 	}
@@ -855,9 +922,152 @@ func (h *Handler) DeleteSalaryHistory(c *gin.Context) {
 		return
 	}
 
-	if err := db.DeleteSalaryHistory(id, authUserID); err != nil {
+	if err := storeFromCtx(c).DeleteSalaryHistory(id, authUserID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete salary history"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}
+
+func (h *Handler) MigrateDB(c *gin.Context) {
+	userID, _ := c.Get("userID")
+	authUserID := userID.(int64)
+
+	var input struct {
+		CurrentPassword string `json:"current_password"`
+		TursoURL        string `json:"turso_url"`
+		TursoToken      string `json:"turso_token"`
+		DeleteOldData   bool   `json:"delete_old_data"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 1. Verify user exists and verify password in admin DB
+	u, err := db.Default.GetUserByID(authUserID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+	if !auth.CheckPasswordHash(input.CurrentPassword, u.Password) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid current password"})
+		return
+	}
+
+	// 2. Connect to user's new DB and migrate schema
+	userStore, err := db.ConnectUserDB(input.TursoURL, input.TursoToken)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to connect to provided Turso database"})
+		return
+	}
+	defer userStore.DB.Close()
+
+	if err := db.MigrateUserDB(userStore); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize tables in new database"})
+		return
+	}
+
+	// 3. Copy data from admin DB to new DB
+	if err := userStore.CopyUserData(db.Default, authUserID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to copy data: " + err.Error()})
+		return
+	}
+
+	// 4. Encrypt and save Turso credentials in admin DB
+	salt, err := crypto.GenerateSalt()
+	if err == nil {
+		key := crypto.DeriveKey(input.CurrentPassword, salt)
+		encURL, _ := crypto.Encrypt(input.TursoURL, key)
+		encToken, _ := crypto.Encrypt(input.TursoToken, key)
+		if err := db.Default.StoreUserTursoCredentials(authUserID, salt, encURL, encToken); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store encrypted credentials. Data is copied but you must set the URL again."})
+			return
+		}
+	} else {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate crypto salt"})
+		return
+	}
+
+	// 5. Delete old data if requested
+	if input.DeleteOldData {
+		if err := db.Default.DeleteAllUserData(authUserID); err != nil {
+			// This is not a fatal error since data is safely copied
+			log.Printf("Failed to delete old data for user %d: %v", authUserID, err)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "migrated"})
+}
+
+func (h *Handler) ChangePassword(c *gin.Context) {
+	userID, _ := c.Get("userID")
+	authUserID := userID.(int64)
+
+	var input struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 1. Verify user exists and verify current password
+	u, err := db.Default.GetUserByID(authUserID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+	if !auth.CheckPasswordHash(input.CurrentPassword, u.Password) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid current password"})
+		return
+	}
+
+	// 2. Hash new password
+	newHash, err := auth.HashPassword(input.NewPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash new password"})
+		return
+	}
+
+	// 3. Handle re-encryption if BYODB is used
+	if len(u.KDFSalt) > 0 && len(u.EncryptedTursoURL) > 0 {
+		oldKey := crypto.DeriveKey(input.CurrentPassword, u.KDFSalt)
+
+		// Decrypt with current key
+		tursoURL, errU := crypto.Decrypt(u.EncryptedTursoURL, oldKey)
+		tursoToken, errT := crypto.Decrypt(u.EncryptedTursoToken, oldKey)
+
+		if errU != nil || errT != nil {
+			// Extremely rare: password matched bcrypt but couldn't decrypt.
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decrypt existing database credentials"})
+			return
+		}
+
+		// Generate new salt and key
+		newSalt, err := crypto.GenerateSalt()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate crypto salt"})
+			return
+		}
+		newKey := crypto.DeriveKey(input.NewPassword, newSalt)
+
+		// Encrypt with new key
+		newEncURL, _ := crypto.Encrypt(tursoURL, newKey)
+		newEncToken, _ := crypto.Encrypt(tursoToken, newKey)
+
+		if err := db.Default.UpdateUserPasswordWithTurso(authUserID, newHash, newSalt, newEncURL, newEncToken); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save new password and encrypted credentials"})
+			return
+		}
+	} else {
+		// Non-BYODB user, just update password
+		if err := db.UpdateUserPassword(authUserID, newHash); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "password_changed"})
 }

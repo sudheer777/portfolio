@@ -13,6 +13,10 @@ type User struct {
 	YearlyExpense  *float64   `json:"yearly_expense"`
 	InflationRate  *float64   `json:"inflation_rate"`
 	LifeExpectancy *float64   `json:"life_expectancy"`
+	// BYODB fields — never sent to client
+	KDFSalt             []byte `json:"-"`
+	EncryptedTursoURL   []byte `json:"-"`
+	EncryptedTursoToken []byte `json:"-"`
 }
 
 type Transaction struct {

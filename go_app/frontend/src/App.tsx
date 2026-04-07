@@ -11,13 +11,14 @@ import { AssetRebalancer } from './components/AssetRebalancer';
 import CareerCalculator from './components/CareerCalculator';
 import ExpenseFICalculator from './components/ExpenseFICalculator';
 import { ReloadPrompt } from './components/ReloadPrompt';
+import { PrivacySettings } from './components/PrivacySettings';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'rates' | 'epf' | 'ppf' | 'rebalancer' | 'career' | 'fire'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'rates' | 'epf' | 'ppf' | 'rebalancer' | 'career' | 'fire' | 'privacy'>('dashboard');
 
   useEffect(() => {
     setIsAuthenticated(api.checkAuth());
@@ -136,6 +137,15 @@ function App() {
           >
             <span className="text-red-500 font-bold">FIRE</span> Simulator
           </button>
+          <button
+            onClick={() => setView('privacy')}
+            className={`py-2 px-4 font-medium transition-colors duration-200 border-b-2 whitespace-nowrap ${view === 'privacy'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+          >
+            🔐 Privacy & BYODB
+          </button>
         </div>
 
         <main>
@@ -166,8 +176,10 @@ function App() {
             <AssetRebalancer />
           ) : view === 'career' ? (
             <CareerCalculator />
-          ) : (
+          ) : view === 'fire' ? (
             <ExpenseFICalculator />
+          ) : (
+            <PrivacySettings />
           )}
         </main>
       </div>

@@ -10,6 +10,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [tursoUrl, setTursoUrl] = useState('');
+    const [tursoToken, setTursoToken] = useState('');
     const [error, setError] = useState('');
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -17,7 +19,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         setError('');
         try {
             if (isRegistering) {
-                await api.register(name, email, password);
+                await api.register(name, email, password, tursoUrl || undefined, tursoToken || undefined);
                 // Auto login after register or ask user to login?
                 // Let's auto login for better UX
                 await api.login(email, password);
@@ -84,6 +86,36 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                             />
                         </div>
                     </div>
+
+                    {isRegistering && (
+                        <div className="mt-4 space-y-3">
+                            <div className="rounded-md bg-blue-50 p-3">
+                                <p className="text-xs text-blue-700">
+                                    <strong>🔐 Privacy Mode (optional):</strong> Provide your own
+                                    <a href="https://turso.tech" target="_blank" rel="noreferrer" className="underline mx-1">Turso</a>
+                                    database credentials to store your financial data privately.
+                                    Your data will be encrypted with your password — even the admin cannot read it.
+                                    Leave blank to use the shared database.
+                                </p>
+                            </div>
+                            <input
+                                id="turso-url"
+                                type="text"
+                                className="appearance-none block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                placeholder="Turso DB URL (libsql://...) — optional"
+                                value={tursoUrl}
+                                onChange={(e) => setTursoUrl(e.target.value)}
+                            />
+                            <input
+                                id="turso-token"
+                                type="password"
+                                className="appearance-none block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                placeholder="Turso Auth Token — optional"
+                                value={tursoToken}
+                                onChange={(e) => setTursoToken(e.target.value)}
+                            />
+                        </div>
+                    )}
 
                     {error && (
                         <div className="text-red-500 text-sm text-center">

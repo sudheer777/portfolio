@@ -21,9 +21,38 @@ This repository contains both a Go backend for data crunching and robust persist
 - **Asset Allocation Breakdowns:** View precisely what percentage of your total net worth is locked in debt versus other asset classes down to the exact decimal.
 - **Historical Velocity ("Snapshots"):** The Snapshot feature captures your exact portfolio total on any given day, permanently storing your financial timeline to visualize wealth progression over the years.
 
-### 🔐 Security & Architecture
+### � Advanced Financial Simulators
+- **FIRE Simulator:** A robust, multi-phase retirement simulation engine. It factors in real-world portfolio yields, dynamic inflation-adjusted living expenses, and seamlessly models both the active accumulation phase (via monthly SIPs) and the lifelong post-retirement depletion phase.
+- **Career Growth Analytics:** Map out your lifetime earnings with detailed year-over-year increment metrics. It calculates gross vs. in-hand salary increases (accounting for gratuity and leave encashment growth) and allows side-by-side comparative analysis of user-defined salary hike scenarios against 0% static baselines.
+
+### �🔐 Security & Architecture
 - **JWT User Authentication:** Fully working basic auth system with `bcrypt` encrypted passwords and secure stateless JSON Web Token sessions.
 - **Dockerized & Cloud-Ready:** A highly optimized multi-stage container setup that builds React (via Node) and Go (via Alpine). It securely loads credentials via environment variables (`TURSO_DATABASE_URL`) making it 1-click deployable to cloud platforms like Koyeb.
+
+### 🔒 Bring Your Own Database (BYODB) Privacy
+- **Opt-In True Privacy:** Optionally provide your own Turso database credentials during registration. Instead of storing your life's financial data on the shared server, your data lives uniquely in your own personal Turso instance.
+- **Robust Encryption:** The backend securely encrypts your Turso API credentials using an AES-256-GCM key derived directly from your login password (PBKDF2-SHA256). Even the server administrator cannot intercept your credentials or decrypt your database token.
+- **Dynamic Database Routing:** A custom Golang middleware dynamically resolves and routes REST API requests directly to your personal database based on zero-trust headers.
+- **Seamless Data Migrations:** A built-in dashboard allows existing users to migrate their entire transaction history to a personal database at any time, complete with a 1-click hard-delete mechanism to permanently scrub their old data from the global master server.
+- **Secure Key Rotation:** Comprehensive encryption lifecycle handling guarantees that when changing your login password, the backend automatically reconstructs the crypto sequence, rotates the salt, and seamlessly re-encrypts your database credentials.
+
+#### 📝 How to get your Turso Credentials
+To use the BYODB feature, you simply need a free Turso database. You can set this up quickly using the Web UI or the CLI:
+
+**Option A: Using the Turso Web UI (Easiest)**
+1. **Sign Up:** Go to [turso.tech](https://turso.tech/) and log in / create a free account.
+2. **Create Database:** From the main dashboard, click the **"Create Database"** button. Give it a name (e.g., `portfolio-db`).
+3. **Get Database URL:** Once created, click on your database. Copy the **Database URL** from the top of the overview page (it will look like `libsql://...`).
+4. **Generate Token:** On the same page, click the **"Generate Token"** button (usually in the connection details) and copy the text block.
+5. **Migrate:** Open this app, navigate to "Privacy & BYODB" (or input them during registration), and paste your URL and Token!
+
+**Option B: Using the Turso CLI**
+1. **Install CLI:** `curl -sSf https://get.turso.tech/install.sh | bash` (Mac/Linux) or `brew install tursodatabase/tap/turso`.
+2. **Login:** Run `turso auth login` in your terminal to authenticate.
+3. **Create Database:** Run `turso db create my-portfolio-db`.
+4. **Get Database URL:** Run `turso db show my-portfolio-db` and copy the URL.
+5. **Get Auth Token:** Run `turso db tokens create my-portfolio-db` and copy the generated token.
+6. **Migrate:** As above, paste these into the app's settings section.
 
 ## Tech Stack
 
