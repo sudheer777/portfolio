@@ -76,6 +76,7 @@ export const FICrossoverCard: React.FC<{ expectedHike?: number, portfolioData?: 
     const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
     const [fetchedPortfolio, setFetchedPortfolio] = useState<PortfolioSummary | null>(null);
     const [monthlySip, setMonthlySip] = useState(0);
+    const [yearlySipIncrementPct, setYearlySipIncrementPct] = useState(0);
     const [expectedReturns, setExpectedReturns] = useState<Record<string, string>>({});
 
     const portfolio = portfolioData || fetchedPortfolio;
@@ -93,6 +94,9 @@ export const FICrossoverCard: React.FC<{ expectedHike?: number, portfolioData?: 
                     const config = JSON.parse(configStr);
                     if (config.monthlyAddition) {
                         setMonthlySip(parseFloat(config.monthlyAddition));
+                    }
+                    if (config.yearlyIncreasePct) {
+                        setYearlySipIncrementPct(parseFloat(config.yearlyIncreasePct));
                     }
                     if (config.expectedReturns) {
                         setExpectedReturns(config.expectedReturns);
@@ -131,6 +135,7 @@ export const FICrossoverCard: React.FC<{ expectedHike?: number, portfolioData?: 
     let m = 0;
     let currentSimCtc = jobDetails.current_ctc;
     let fiSimBalance = currentPortfolioSize;
+    let activeMonthlySip = monthlySip;
     let monthlyRate = impliedAnnualReturn / 12;
 
     let projectedDailyPortfolioGrowth = dailyPortfolioGrowth;
@@ -160,15 +165,16 @@ export const FICrossoverCard: React.FC<{ expectedHike?: number, portfolioData?: 
 
         m++;
         // Portfolio grows
-        fiSimBalance = fiSimBalance * (1 + monthlyRate) + monthlySip;
+        fiSimBalance = fiSimBalance * (1 + monthlyRate) + activeMonthlySip;
         // The NEW daily portfolio growth is the new balance * implied rate / 365
         projectedDailyPortfolioGrowth = (fiSimBalance * impliedAnnualReturn) / 365;
 
         // Once a year, hike the CTC!
-        if (m % 12 === 0) {
+        if (m > 0 && m % 12 === 0) {
             currentSimCtc = currentSimCtc * (1 + (expectedHike / 100));
             const newTaxData = calculateTaxesNewRegime(currentSimCtc);
             activeDailyInHand = newTaxData.monthlyInHand / 30; // approx per day wage
+            activeMonthlySip = activeMonthlySip * (1 + (yearlySipIncrementPct / 100));
         }
     }
 
@@ -182,7 +188,10 @@ export const FICrossoverCard: React.FC<{ expectedHike?: number, portfolioData?: 
                 <p className="text-gray-600 text-sm font-semibold">Financial Independence (FI) Target</p>
                 <div className="flex items-center space-x-1">
                     <label className="text-xs text-gray-500">Monthly SIP</label>
-                    <span className="text-sm font-bold text-gray-700">{formatCurrency(monthlySip)}</span>
+                    <span className="text-sm font-bold text-gray-700">
+                        {formatCurrency(monthlySip)}
+                        {yearlySipIncrementPct > 0 && <span className="ml-1 text-xs text-green-600 font-medium whitespace-nowrap">(+{yearlySipIncrementPct}%/yr)</span>}
+                    </span>
                 </div>
             </div>
 

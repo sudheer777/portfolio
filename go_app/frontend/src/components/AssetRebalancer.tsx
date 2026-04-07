@@ -89,6 +89,7 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
     const pastUSDMilestones = propPastUSDMilestones.length > 0 ? propPastUSDMilestones : fetchedUSDMilestones;
 
     const [monthlyAddition, setMonthlyAddition] = useState<string>(Math.round(defaultMonthlyAddition).toString());
+    const [yearlyIncreasePct, setYearlyIncreasePct] = useState<string>("0");
     const [months, setMonths] = useState<string>("12");
     const [customAdditions, setCustomAdditions] = useState<Record<string, string>>({});
 
@@ -131,6 +132,7 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
                         setMonthlyAddition(config.monthlyAddition);
                         setIsSipModified(true); // Prevent the useEffect from overwriting with the computed avg
                     }
+                    if (config.yearlyIncreasePct) setYearlyIncreasePct(config.yearlyIncreasePct);
                     if (config.expectedReturns) setExpectedReturns(config.expectedReturns);
                 } catch (e) {
                     console.error("Failed to parse rebalancer config", e);
@@ -277,7 +279,16 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
         const simVals: Record<string, number> = {};
         rebalanceData.forEach(item => { simVals[item.key] = item.currentValue; });
 
+        const annualStepUpMultiplier = 1 + (parseFloat(yearlyIncreasePct) || 0) / 100;
+
         for (let m = 1; m <= ETA_MAX_MONTHS && pendingETA.size > 0; m++) {
+            // Apply annual step-up to SIP at start of each year (month 13, 25, 37...)
+            if (m > 1 && (m - 1) % 12 === 0) {
+                rebalanceData.forEach(item => {
+                    etaAdditions[item.key] = etaAdditions[item.key] * annualStepUpMultiplier;
+                });
+            }
+
             // Advance all assets one month using compound growth
             let monthTotal = 0;
             rebalanceData.forEach(item => {
@@ -335,8 +346,16 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
             addition: finalProjectedData.find(d => d.key === item.key)?.effectiveAddition || 0
         }));
 
+        const annualStepUpMultiplier = 1 + (parseFloat(yearlyIncreasePct) || 0) / 100;
+
         // Project month by month
         for (let m = 1; m <= nMonths; m++) {
+            if (m > 1 && (m - 1) % 12 === 0) {
+                activeAssets.forEach(asset => {
+                    asset.addition = asset.addition * annualStepUpMultiplier;
+                });
+            }
+
             const futureDate = new Date();
             futureDate.setMonth(futureDate.getMonth() + m);
             const point: any = { month: m, monthLabel: futureDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) };
@@ -388,9 +407,16 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
 
         let runningTotal = currentTotal;
         const startDate = new Date();
+        const annualStepUpMultiplier = 1 + (parseFloat(yearlyIncreasePct) || 0) / 100;
 
         // Project up to nMonths to match the projection chart length
         for (let m = 1; m <= nMonths; m++) {
+            if (m > 1 && (m - 1) % 12 === 0) {
+                activeAssets.forEach(asset => {
+                    asset.addition = asset.addition * annualStepUpMultiplier;
+                });
+            }
+
             let monthlyTotal = 0;
             activeAssets.forEach(asset => {
                 const newVal = currentVals[asset.key] * (1 + asset.monthlyRate) + asset.addition;
@@ -443,7 +469,7 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
                     <button
                         onClick={async () => {
                             try {
-                                const config = JSON.stringify({ targets, months, customAdditions, monthlyAddition, expectedReturns });
+                                const config = JSON.stringify({ targets, months, customAdditions, monthlyAddition, yearlyIncreasePct, expectedReturns });
                                 await api.saveRebalancerConfig(config);
                                 setSaveStatus('Saved!');
                                 setTimeout(() => setSaveStatus(''), 3000);
@@ -464,21 +490,36 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
                 <div className="bg-white p-4 rounded border border-indigo-200">
                     <h5 className="font-semibold text-gray-700 mb-4 border-b pb-2">Configuration</h5>
 
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Addition (SIP)</label>
-                        <div className="flex items-center">
-                            <span className="text-gray-500 mr-2">₹</span>
-                            <input
-                                type="number"
-                                value={monthlyAddition}
-                                onChange={(e) => {
-                                    setMonthlyAddition(e.target.value);
-                                    setIsSipModified(true);
-                                }}
-                                className="block w-full border border-gray-300 rounded-md shadow-sm p-2 text-gray-900 focus:ring-indigo-500 focus:border-indigo-500"
-                            />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Addition (SIP)</label>
+                            <div className="flex items-center">
+                                <span className="text-gray-500 mr-2">₹</span>
+                                <input
+                                    type="number"
+                                    value={monthlyAddition}
+                                    onChange={(e) => {
+                                        setMonthlyAddition(e.target.value);
+                                        setIsSipModified(true);
+                                    }}
+                                    className="block w-full border border-gray-300 rounded-md shadow-sm p-2 text-gray-900 focus:ring-indigo-500 focus:border-indigo-500"
+                                />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">Total budget you want to invest.</p>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">Total budget you want to invest. Suggestions recalculate automatically.</p>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Yearly Increase (Step-up %)</label>
+                            <div className="flex items-center">
+                                <input
+                                    type="number"
+                                    value={yearlyIncreasePct}
+                                    onChange={(e) => setYearlyIncreasePct(e.target.value)}
+                                    className="block w-full border border-gray-300 rounded-md shadow-sm p-2 text-gray-900 focus:ring-indigo-500 focus:border-indigo-500"
+                                />
+                                <span className="text-gray-500 ml-2">%</span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">SIP incrementally boosts every 12 months.</p>
+                        </div>
                     </div>
 
                     <div className="mb-4">

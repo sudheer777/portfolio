@@ -14,6 +14,7 @@ export default function ExpenseFICalculator() {
     const [loading, setLoading] = useState(true);
     const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
     const [monthlySip, setMonthlySip] = useState(0);
+    const [yearlySipIncrementPct, setYearlySipIncrementPct] = useState(0);
     const [expectedReturns, setExpectedReturns] = useState<Record<string, string>>({});
 
     // User inputs for FIRE
@@ -38,6 +39,9 @@ export default function ExpenseFICalculator() {
                     const config = JSON.parse(configStr);
                     if (config.monthlyAddition) {
                         setMonthlySip(parseFloat(config.monthlyAddition));
+                    }
+                    if (config.yearlyIncreasePct) {
+                        setYearlySipIncrementPct(parseFloat(config.yearlyIncreasePct));
                     }
                     if (config.expectedReturns) {
                         setExpectedReturns(config.expectedReturns);
@@ -152,12 +156,14 @@ export default function ExpenseFICalculator() {
     let m = 0;
     let expectedHike = parseFloat(inflationRate) || 0;
     let activeYearlyExpense = parseFloat(yearlyExpense) || 1200000;
+    let activeMonthlySip = monthlySip;
     let fiSimBalance = currentPortfolioSize;
     let monthlyRate = impliedAnnualReturn / 12;
 
     // Independent Ultra-Safe FI Tracking Variables
     let ultraSimBalance = currentPortfolioSize;
     let ultraActiveYearlyExpense = activeYearlyExpense;
+    let ultraActiveMonthlySip = monthlySip;
 
     let startAge = parseFloat(currentAge) || 30;
     let endAge = parseFloat(lifeExpectancy) || 90;
@@ -261,9 +267,10 @@ export default function ExpenseFICalculator() {
                 activeYearlyExpense = activeYearlyExpense * (1 + (expectedHike / 100));
             }
         } else {
-            fiSimBalance = fiSimBalance * (1 + monthlyRate) + monthlySip;
-            if (m % 12 === 0) {
+            fiSimBalance = fiSimBalance * (1 + monthlyRate) + activeMonthlySip;
+            if (m > 0 && m % 12 === 0) {
                 activeYearlyExpense = activeYearlyExpense * (1 + (expectedHike / 100));
+                activeMonthlySip = activeMonthlySip * (1 + (yearlySipIncrementPct / 100));
             }
         }
 
@@ -278,9 +285,10 @@ export default function ExpenseFICalculator() {
                 ultraActiveYearlyExpense = ultraActiveYearlyExpense * (1 + (expectedHike / 100));
             }
         } else {
-            ultraSimBalance = ultraSimBalance * (1 + monthlyRate) + monthlySip;
-            if (m % 12 === 0) {
+            ultraSimBalance = ultraSimBalance * (1 + monthlyRate) + ultraActiveMonthlySip;
+            if (m > 0 && m % 12 === 0) {
                 ultraActiveYearlyExpense = ultraActiveYearlyExpense * (1 + (expectedHike / 100));
+                ultraActiveMonthlySip = ultraActiveMonthlySip * (1 + (yearlySipIncrementPct / 100));
             }
         }
     }
@@ -370,7 +378,10 @@ export default function ExpenseFICalculator() {
                             </div>
                             <div className="flex justify-between border-b pb-1">
                                 <span className="text-sm">Monthly SIP</span>
-                                <span className="font-bold text-gray-800">{formatCurrency(monthlySip)}</span>
+                                <span className="font-bold text-gray-800">
+                                    {formatCurrency(monthlySip)}
+                                    {yearlySipIncrementPct > 0 && <span className="ml-1 text-xs text-green-600 font-medium">(+{yearlySipIncrementPct}%/yr)</span>}
+                                </span>
                             </div>
                             <div className="flex justify-between border-b pb-1">
                                 <span className="text-sm">Blended Yield (APY)</span>
