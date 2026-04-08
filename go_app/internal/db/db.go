@@ -61,6 +61,7 @@ func createAdminTables() error {
 			total_amount REAL,
 			user_id INTEGER,
 			asset_summary_json TEXT,
+			rebalancer_config_json TEXT,
 			FOREIGN KEY(user_id) REFERENCES users(id)
 		);`,
 		`CREATE TABLE IF NOT EXISTS rebalancer_config (
@@ -100,6 +101,7 @@ func createAdminTables() error {
 	DB.Exec(`ALTER TABLE users ADD COLUMN encrypted_turso_url BLOB;`)
 	DB.Exec(`ALTER TABLE users ADD COLUMN encrypted_turso_token BLOB;`)
 	DB.Exec(`ALTER TABLE portfolio_history ADD COLUMN asset_summary_json TEXT;`)
+	DB.Exec(`ALTER TABLE portfolio_history ADD COLUMN rebalancer_config_json TEXT;`)
 	return nil
 }
 

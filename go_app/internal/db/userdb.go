@@ -61,6 +61,7 @@ func MigrateUserDB(s *Store) error {
 			total_amount REAL,
 			user_id INTEGER,
 			asset_summary_json TEXT,
+			rebalancer_config_json TEXT,
 			FOREIGN KEY(user_id) REFERENCES users(id)
 		);`,
 		`CREATE TABLE IF NOT EXISTS rebalancer_config (
@@ -91,5 +92,7 @@ func MigrateUserDB(s *Store) error {
 			return fmt.Errorf("MigrateUserDB: %w", err)
 		}
 	}
+	// Migrations for existing user databases (errors safely ignored — column may already exist)
+	s.DB.Exec(`ALTER TABLE portfolio_history ADD COLUMN rebalancer_config_json TEXT;`)
 	return nil
 }

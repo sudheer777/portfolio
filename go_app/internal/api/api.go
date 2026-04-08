@@ -564,11 +564,15 @@ func (h *Handler) SaveSnapshot(c *gin.Context) {
 	}
 	jsonStr := string(jsonBytes)
 
+	// Also capture the current Rebalancer config so comparisons use point-in-time SIP/returns
 	history := models.PortfolioHistory{
 		Date:             time.Now(),
 		TotalAmount:      summary.Total.FinalAmount,
 		UserID:           authUserID,
 		AssetSummaryJSON: &jsonStr,
+	}
+	if cfgStr, cfgErr := storeFromCtx(c).GetRebalancerConfig(authUserID); cfgErr == nil && cfgStr != "" {
+		history.RebalancerConfigJSON = &cfgStr
 	}
 
 	if err := storeFromCtx(c).AddPortfolioHistory(history); err != nil {

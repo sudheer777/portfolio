@@ -1,26 +1,37 @@
-
 import React, { useState } from 'react';
 import { api } from '../api';
-
-interface HistoryPoint {
-    id: number;
-    date: string;
-    total_amount: number;
-}
+import { SnapshotComparator, type FullHistoryPoint } from './SnapshotComparator';
+import type { PortfolioSummary } from '../types';
 
 interface HistoryListProps {
-    history: HistoryPoint[];
+    history: FullHistoryPoint[];
     onUpdate: () => void;
+    livePortfolio?: PortfolioSummary | null; // Present-day live data for vs Today comparison
 }
 
-export const HistoryList: React.FC<HistoryListProps> = ({ history, onUpdate }) => {
+export const HistoryList: React.FC<HistoryListProps> = ({ history, onUpdate, livePortfolio }) => {
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editDate, setEditDate] = useState("");
     const [editAmount, setEditAmount] = useState("");
     const [isExpanded, setIsExpanded] = useState(false);
     const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [selectedSnapshots, setSelectedSnapshots] = useState<FullHistoryPoint[]>([]);
 
-    const startEdit = (item: HistoryPoint) => {
+    // Synthesize a FullHistoryPoint for today using the live portfolio data
+    const todaySnapshot: FullHistoryPoint | null = livePortfolio ? {
+        id: -1, // sentinel id for live
+        date: new Date().toISOString(),
+        total_amount: livePortfolio.total.final_amount,
+        asset_summary_json: JSON.stringify(livePortfolio),
+    } : null;
+
+    const compareWithToday = (item: FullHistoryPoint, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!todaySnapshot) return;
+        setSelectedSnapshots([item, todaySnapshot]);
+    };
+
+    const startEdit = (item: FullHistoryPoint) => {
         setEditingId(item.id);
         const dateStr = new Date(item.date).toISOString().split('T')[0];
         setEditDate(dateStr);
@@ -31,6 +42,23 @@ export const HistoryList: React.FC<HistoryListProps> = ({ history, onUpdate }) =
         setEditingId(null);
         setEditDate("");
         setEditAmount("");
+    };
+
+    const toggleSelection = (item: FullHistoryPoint, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (selectedSnapshots.find(s => s.id === item.id)) {
+            setSelectedSnapshots(selectedSnapshots.filter(s => s.id !== item.id));
+        } else {
+            if (selectedSnapshots.length >= 2) {
+                setSelectedSnapshots([selectedSnapshots[1], item]);
+            } else {
+                setSelectedSnapshots([...selectedSnapshots, item]);
+            }
+        }
+    };
+
+    const isSelected = (id: number) => {
+        return selectedSnapshots.some(s => s.id === id);
     };
 
     const handleUpdate = async (id: number) => {
@@ -86,7 +114,10 @@ export const HistoryList: React.FC<HistoryListProps> = ({ history, onUpdate }) =
                 className="bg-gray-50 px-6 py-3 border-b border-gray-200 flex justify-between items-center cursor-pointer hover:bg-gray-100"
                 onClick={() => setIsExpanded(!isExpanded)}
             >
-                <h4 className="font-semibold text-gray-700">History Entries ({history.length})</h4>
+                <div className="flex flex-col items-start">
+                    <h4 className="font-semibold text-gray-700">History Entries ({history.length})</h4>
+                    <p className="text-xs text-gray-400">☑ Select 2 full snapshots or use <strong>vs Today</strong> to compare</p>
+                </div>
                 <button className="text-gray-500 text-sm focus:outline-none">
                     {isExpanded ? "Collapse ▲" : "Expand ▼"}
                 </button>
@@ -94,9 +125,19 @@ export const HistoryList: React.FC<HistoryListProps> = ({ history, onUpdate }) =
 
             {isExpanded && (
                 <div className="overflow-x-auto">
+                    {selectedSnapshots.length === 2 && (
+                        <div className="p-4 border-b">
+                            <SnapshotComparator
+                                snapshotA={selectedSnapshots[0]}
+                                snapshotB={selectedSnapshots[1]}
+                                onClose={() => setSelectedSnapshots([])}
+                            />
+                        </div>
+                    )}
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
+                                <th className="px-6 py-3 text-left"></th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -104,9 +145,10 @@ export const HistoryList: React.FC<HistoryListProps> = ({ history, onUpdate }) =
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                             {history.map((item) => (
-                                <tr key={item.id} className="hover:bg-gray-50">
+                                <tr key={item.id} className={`hover:bg-gray-50 ${isSelected(item.id) ? 'bg-indigo-50/50' : ''}`}>
                                     {editingId === item.id ? (
                                         <>
+                                            <td className="px-6 py-4"></td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <input
                                                     type="date"
@@ -130,6 +172,20 @@ export const HistoryList: React.FC<HistoryListProps> = ({ history, onUpdate }) =
                                         </>
                                     ) : (
                                         <>
+                                            <td className="px-3 py-4 whitespace-nowrap text-center">
+                                                {item.asset_summary_json ? (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected(item.id)}
+                                                        onChange={() => { }}
+                                                        onClick={(e) => toggleSelection(item, e)}
+                                                        className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                                        title="Select to compare"
+                                                    />
+                                                ) : (
+                                                    <span title="Legacy snapshot — no asset detail available" className="text-gray-300 text-sm select-none">🔒</span>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">
                                                 {new Date(item.date).toLocaleDateString()}
                                             </td>
@@ -137,6 +193,15 @@ export const HistoryList: React.FC<HistoryListProps> = ({ history, onUpdate }) =
                                                 ₹{item.total_amount.toLocaleString('en-IN')}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                                                {todaySnapshot && (
+                                                    <button
+                                                        onClick={(e) => compareWithToday(item, e)}
+                                                        className="text-emerald-600 hover:text-emerald-800 font-medium"
+                                                        title="Compare this snapshot against today's live portfolio"
+                                                    >
+                                                        vs Today
+                                                    </button>
+                                                )}
                                                 <button onClick={() => startEdit(item)} className="text-indigo-600 hover:text-indigo-900">Edit</button>
                                                 <button onClick={() => setDeletingId(item.id)} className="text-red-600 hover:text-red-900">Delete</button>
                                             </td>

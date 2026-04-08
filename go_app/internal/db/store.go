@@ -204,14 +204,14 @@ func (s *Store) GetAllInterestRates() ([]models.InterestRate, error) {
 
 func (s *Store) AddPortfolioHistory(h models.PortfolioHistory) error {
 	_, err := s.DB.Exec(
-		"INSERT INTO portfolio_history (date, total_amount, user_id, asset_summary_json) VALUES (?, ?, ?, ?)",
-		h.Date, h.TotalAmount, h.UserID, h.AssetSummaryJSON)
+		"INSERT INTO portfolio_history (date, total_amount, user_id, asset_summary_json, rebalancer_config_json) VALUES (?, ?, ?, ?, ?)",
+		h.Date, h.TotalAmount, h.UserID, h.AssetSummaryJSON, h.RebalancerConfigJSON)
 	return err
 }
 
 func (s *Store) GetPortfolioHistory(userID int64) ([]models.PortfolioHistory, error) {
 	rows, err := s.DB.Query(
-		"SELECT id, date, total_amount, user_id, asset_summary_json FROM portfolio_history WHERE user_id = ? ORDER BY date", userID)
+		"SELECT id, date, total_amount, user_id, asset_summary_json, rebalancer_config_json FROM portfolio_history WHERE user_id = ? ORDER BY date", userID)
 	if err != nil {
 		return nil, err
 	}
@@ -221,12 +221,16 @@ func (s *Store) GetPortfolioHistory(userID int64) ([]models.PortfolioHistory, er
 		var h models.PortfolioHistory
 		var dateStr string
 		var assetSummary sql.NullString
-		if err := rows.Scan(&h.ID, &dateStr, &h.TotalAmount, &h.UserID, &assetSummary); err != nil {
+		var rebalancerConfig sql.NullString
+		if err := rows.Scan(&h.ID, &dateStr, &h.TotalAmount, &h.UserID, &assetSummary, &rebalancerConfig); err != nil {
 			return nil, err
 		}
 		h.Date, _ = time.Parse(time.RFC3339, dateStr)
 		if assetSummary.Valid && assetSummary.String != "" {
 			h.AssetSummaryJSON = &assetSummary.String
+		}
+		if rebalancerConfig.Valid && rebalancerConfig.String != "" {
+			h.RebalancerConfigJSON = &rebalancerConfig.String
 		}
 		history = append(history, h)
 	}

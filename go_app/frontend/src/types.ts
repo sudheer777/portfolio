@@ -67,4 +67,5 @@ export interface PortfolioHistory {
     date: string;
     total_amount: number;
     asset_summary_json?: string;
+    rebalancer_config_json?: string; // Snapshot of Rebalancer config at time of save
 }

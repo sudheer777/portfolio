@@ -7,6 +7,7 @@ import { HistoryChart } from "./HistoryChart";
 import { HistoryList } from "./HistoryList";
 import { HistoryAnalysis, type Milestone } from "./HistoryAnalysis";
 import { FICrossoverCard } from "./FICrossoverCard";
+import { SnapshotComparator } from "./SnapshotComparator";
 import type { PortfolioSummary, UserSummary, Amount, PortfolioHistory } from "../types";
 
 export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () => void }> = ({ refreshKey, onTransactionChange }) => {
@@ -17,6 +18,7 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
 
     const [liveData, setLiveData] = useState<PortfolioSummary | null>(null);
     const [selectedSnapshotId, setSelectedSnapshotId] = useState<number | null>(null);
+    const [compareSnapshotId, setCompareSnapshotId] = useState<number | null>(null);
 
     const [history, setHistory] = useState<PortfolioHistory[]>([]);
     const [manualDate, setManualDate] = useState("");
@@ -155,11 +157,23 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
         .filter(h => h.asset_summary_json)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+    // All history entries sorted descending (for the Compare dropdown — any entry works since Today is always full)
+    const allHistorySorted = [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Construct snapshots for the top-level comparator
+    const compareSnap = compareSnapshotId !== null ? history.find(h => h.id === compareSnapshotId) : null;
+    const todaySnapForCompare = liveData ? {
+        id: -1,
+        date: new Date().toISOString(),
+        total_amount: liveData.total.final_amount,
+        asset_summary_json: JSON.stringify(liveData),
+    } : null;
+
     return (
         <div className="space-y-8">
             <div className="bg-indigo-50 rounded-lg shadow border border-indigo-100 p-6">
                 <div className="flex justify-between items-center mb-4">
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-3 flex-wrap">
                         <h3 className="text-xl font-bold text-indigo-900">Grand Total (All Users)</h3>
                         {validHistoryOptions.length > 0 && (
                             <div className="flex items-center gap-2 bg-white border border-indigo-200 rounded-md p-1.5 shadow-sm">
@@ -175,6 +189,26 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
                                         {validHistoryOptions.map(h => (
                                             <option key={h.id} value={h.id.toString()}>
                                                 {new Date(h.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })} Snapshot (₹{(h.total_amount / 100000).toFixed(1)}L)
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+                        {allHistorySorted.length > 0 && (
+                            <div className="flex items-center gap-2 bg-white border border-emerald-200 rounded-md p-1.5 shadow-sm">
+                                <span className="text-lg">📊</span>
+                                <div className="flex flex-col">
+                                    <label className="text-[9px] font-bold text-emerald-700 uppercase tracking-wider leading-none mb-0.5">Compare With Today</label>
+                                    <select
+                                        className="bg-transparent text-xs font-semibold text-emerald-900 border-none focus:ring-0 p-0 cursor-pointer w-48 leading-none"
+                                        value={compareSnapshotId?.toString() || ""}
+                                        onChange={(e) => setCompareSnapshotId(e.target.value ? parseInt(e.target.value) : null)}
+                                    >
+                                        <option value="">Select a snapshot…</option>
+                                        {allHistorySorted.map(h => (
+                                            <option key={h.id} value={h.id.toString()}>
+                                                {new Date(h.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })} — ₹{(h.total_amount / 100000).toFixed(1)}L{h.asset_summary_json ? '' : ' (legacy)'}
                                             </option>
                                         ))}
                                     </select>
@@ -224,6 +258,17 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
                     </form>
                 )}
 
+                {/* Top-level Snapshot Comparator — renders when a snapshot is chosen from the dropdown */}
+                {compareSnap && todaySnapForCompare && (
+                    <div className="mb-6">
+                        <SnapshotComparator
+                            snapshotA={compareSnap}
+                            snapshotB={todaySnapForCompare}
+                            onClose={() => setCompareSnapshotId(null)}
+                        />
+                    </div>
+                )}
+
                 <StatCard title="Portfolio Total" amount={data.total} isTotal />
                 <PortfolioCharts data={aggregateFds} />
                 {data.asset_types && <AssetAllocationCharts
@@ -249,7 +294,7 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
                         }}
                         savedMonthlyAddition={savedSipValue}
                     />
-                    <HistoryList history={history} onUpdate={loadHistory} />
+                    <HistoryList history={history} onUpdate={loadHistory} livePortfolio={liveData} />
                 </div>
             </div>
 

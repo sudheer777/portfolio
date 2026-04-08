@@ -83,10 +83,10 @@ func (s *Store) CopyUserData(source *Store, userID int64) error {
 
 	// 4. Portfolio History
 	if hist, err := source.GetPortfolioHistory(userID); err == nil {
-		stmt, _ := tx.Prepare("INSERT INTO portfolio_history (date, total_amount, user_id, asset_summary_json) VALUES (?, ?, ?, ?)")
+		stmt, _ := tx.Prepare("INSERT INTO portfolio_history (date, total_amount, user_id, asset_summary_json, rebalancer_config_json) VALUES (?, ?, ?, ?, ?)")
 		if stmt != nil {
 			for _, h := range hist {
-				if _, err := stmt.Exec(h.Date.Format(time.RFC3339), h.TotalAmount, userID, h.AssetSummaryJSON); err != nil {
+				if _, err := stmt.Exec(h.Date.Format(time.RFC3339), h.TotalAmount, userID, h.AssetSummaryJSON, h.RebalancerConfigJSON); err != nil {
 					stmt.Close()
 					return err
 				}

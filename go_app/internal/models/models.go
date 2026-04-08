@@ -59,11 +59,12 @@ type UserSummary struct {
 }
 
 type PortfolioHistory struct {
-	ID               int64     `json:"id"`
-	Date             time.Time `json:"date"`
-	TotalAmount      float64   `json:"total_amount"`
-	UserID           int64     `json:"user_id"`
-	AssetSummaryJSON *string   `json:"asset_summary_json"`
+	ID                   int64     `json:"id"`
+	Date                 time.Time `json:"date"`
+	TotalAmount          float64   `json:"total_amount"`
+	UserID               int64     `json:"user_id"`
+	AssetSummaryJSON     *string   `json:"asset_summary_json"`
+	RebalancerConfigJSON *string   `json:"rebalancer_config_json"`
 }
 
 type JobDetails struct {
