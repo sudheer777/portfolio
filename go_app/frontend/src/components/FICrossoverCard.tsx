@@ -77,6 +77,7 @@ export const FICrossoverCard: React.FC<{ expectedHike?: number, portfolioData?: 
     const [fetchedPortfolio, setFetchedPortfolio] = useState<PortfolioSummary | null>(null);
     const [monthlySip, setMonthlySip] = useState(0);
     const [yearlySipIncrementPct, setYearlySipIncrementPct] = useState(0);
+    const [stepUpMonth, setStepUpMonth] = useState(1);
     const [expectedReturns, setExpectedReturns] = useState<Record<string, string>>({});
 
     const portfolio = portfolioData || fetchedPortfolio;
@@ -97,6 +98,9 @@ export const FICrossoverCard: React.FC<{ expectedHike?: number, portfolioData?: 
                     }
                     if (config.yearlyIncreasePct) {
                         setYearlySipIncrementPct(parseFloat(config.yearlyIncreasePct));
+                    }
+                    if (config.stepUpMonth) {
+                        setStepUpMonth(parseInt(config.stepUpMonth) || 1);
                     }
                     if (config.expectedReturns) {
                         setExpectedReturns(config.expectedReturns);
@@ -169,8 +173,8 @@ export const FICrossoverCard: React.FC<{ expectedHike?: number, portfolioData?: 
         // The NEW daily portfolio growth is the new balance * implied rate / 365
         projectedDailyPortfolioGrowth = (fiSimBalance * impliedAnnualReturn) / 365;
 
-        // Once a year, hike the CTC!
-        if (m > 0 && m % 12 === 0) {
+        // Once a year on exactly the target calendar month, hike the CTC!
+        if (m > 0 && (d.getMonth() + 1) === stepUpMonth) {
             currentSimCtc = currentSimCtc * (1 + (expectedHike / 100));
             const newTaxData = calculateTaxesNewRegime(currentSimCtc);
             activeDailyInHand = newTaxData.monthlyInHand / 30; // approx per day wage
