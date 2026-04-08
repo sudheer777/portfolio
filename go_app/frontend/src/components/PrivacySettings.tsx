@@ -74,9 +74,21 @@ export const PrivacySettings: React.FC = () => {
                 <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
                     <div className="flex">
                         <div className="ml-3">
-                            <p className="text-sm text-blue-700">
+                            <p className="text-sm text-blue-700 mb-2">
                                 <strong>Bring Your Own Database (BYODB)</strong> allows you to store all your financial records in your own Turso database instance rather than the shared server. This guarantees absolute privacy — your data is stored securely and even the server administrator cannot access it.
                             </p>
+                            <details className="text-sm text-blue-800 bg-blue-100/50 rounded p-2 mt-2 cursor-pointer border border-blue-200">
+                                <summary className="font-medium hover:text-blue-900 list-none flex items-center">
+                                    <span className="mr-1">👉</span> Don't have a Turso database yet? Here is how to create one for free:
+                                </summary>
+                                <div className="mt-2 text-[13px] space-y-1.5 cursor-text ml-5 pb-1">
+                                    <p>1. Log in to the <a href="https://app.turso.tech" target="_blank" rel="noreferrer" className="font-bold underline text-indigo-600">Turso Dashboard</a> in your web browser.</p>
+                                    <p>2. Click <span className="font-semibold bg-white px-1 py-0.5 rounded border border-blue-200">Create Database</span>, give it a name, and create.</p>
+                                    <p>3. Select the new database from the list to view its dashboard.</p>
+                                    <p>4. <strong>URL:</strong> Locate the Connection URL and copy it (must begin with <code className="bg-blue-100 px-1.5 py-0.5 rounded font-mono text-blue-900">libsql://</code>).</p>
+                                    <p>5. <strong>Token:</strong> Click the <span className="font-semibold bg-white px-1 py-0.5 rounded border border-blue-200">Generate Token</span> button on the page and copy the secret.</p>
+                                </div>
+                            </details>
                         </div>
                     </div>
                 </div>
@@ -190,8 +202,8 @@ export const PrivacySettings: React.FC = () => {
 
                     {cpStatus.type !== 'idle' && (
                         <div className={`p-4 rounded-md ${cpStatus.type === 'loading' ? 'bg-yellow-50 text-yellow-700' :
-                                cpStatus.type === 'error' ? 'bg-red-50 text-red-700' :
-                                    'bg-green-50 text-green-700'
+                            cpStatus.type === 'error' ? 'bg-red-50 text-red-700' :
+                                'bg-green-50 text-green-700'
                             }`}>
                             {cpStatus.message}
                         </div>

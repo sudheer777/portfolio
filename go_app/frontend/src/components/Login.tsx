@@ -89,14 +89,26 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
                     {isRegistering && (
                         <div className="mt-4 space-y-3">
-                            <div className="rounded-md bg-blue-50 p-3">
-                                <p className="text-xs text-blue-700">
+                            <div className="rounded-md bg-blue-50 border border-blue-100 p-3">
+                                <p className="text-xs text-blue-700 mb-2">
                                     <strong>🔐 Privacy Mode (optional):</strong> Provide your own
                                     <a href="https://turso.tech" target="_blank" rel="noreferrer" className="underline mx-1">Turso</a>
                                     database credentials to store your financial data privately.
                                     Your data will be encrypted with your password — even the admin cannot read it.
                                     Leave blank to use the shared database.
                                 </p>
+                                <details className="text-xs text-blue-800 bg-blue-100/50 rounded p-2 mt-2 cursor-pointer border border-blue-200">
+                                    <summary className="font-medium hover:text-blue-900 list-none flex items-center">
+                                        <span className="mr-1">👉</span> How to get your Turso URL & Token?
+                                    </summary>
+                                    <div className="mt-2 text-[11px] space-y-1.5 cursor-text ml-5 pb-1">
+                                        <p>1. Sign in to the <a href="https://app.turso.tech" target="_blank" rel="noreferrer" className="font-bold underline text-indigo-600">Turso Dashboard</a> in your browser.</p>
+                                        <p>2. Click <span className="font-semibold bg-white px-1 py-0.5 rounded border border-blue-200">Create Database</span>, name it, and create.</p>
+                                        <p>3. Click on the DB name to open its overview.</p>
+                                        <p>4. <strong>URL:</strong> Copy the Database URL exactly (should start with <code className="bg-blue-100 px-1 py-0.5 rounded font-mono">libsql://</code>).</p>
+                                        <p>5. <strong>Token:</strong> Click <span className="font-semibold bg-white px-1 py-0.5 rounded border border-blue-200">Generate Token</span> on that page and copy it.</p>
+                                    </div>
+                                </details>
                             </div>
                             <input
                                 id="turso-url"
