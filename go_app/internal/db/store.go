@@ -65,9 +65,11 @@ func (s *Store) GetUserByID(id int64) (models.User, error) {
 	var u models.User
 	var dobStr sql.NullString
 	err := s.DB.QueryRow(
-		"SELECT id, name, email, password, date_of_birth, yearly_expense, inflation_rate, life_expectancy FROM users WHERE id = ?", id,
+		`SELECT id, name, email, password, date_of_birth, yearly_expense, inflation_rate, life_expectancy,
+		 kdf_salt, encrypted_turso_url, encrypted_turso_token FROM users WHERE id = ?`, id,
 	).Scan(&u.ID, &u.Name, &u.Email, &u.Password, &dobStr,
-		&u.YearlyExpense, &u.InflationRate, &u.LifeExpectancy)
+		&u.YearlyExpense, &u.InflationRate, &u.LifeExpectancy,
+		&u.KDFSalt, &u.EncryptedTursoURL, &u.EncryptedTursoToken)
 	if err != nil {
 		return u, err
 	}
