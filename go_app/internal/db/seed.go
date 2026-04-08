@@ -35,17 +35,17 @@ func Seed(usersPath, ratesPath, txPath string) error {
 
 func seedUser() (int64, error) {
 	// Check if user exists
-	u, err := GetUserByEmail("sudheerpendyala7@gmail.com")
+	u, err := GetUserByEmail("demo@example.com")
 	if err == nil && u.ID != 0 {
 		return u.ID, nil
 	}
 
 	// Create user
-	hash, err := auth.HashPassword("Sudheer@7")
+	hash, err := auth.HashPassword("Demo@123")
 	if err != nil {
 		return 0, err
 	}
-	return CreateUser("Sudheer Pendyala", "sudheerpendyala7@gmail.com", hash)
+	return CreateUser("Demo User", "demo@example.com", hash)
 }
 
 func seedRates(path string) error {
