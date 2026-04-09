@@ -171,12 +171,18 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
 
     return (
         <div className="space-y-8">
+            {/* Print-only Report Header */}
+            <div className="hidden print:block mb-8 text-center border-b-2 border-indigo-200 pb-6 w-full">
+                <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Financial Health Report</h1>
+                <p className="text-gray-500 font-medium text-lg">Generated on {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            </div>
+
             <div className="bg-indigo-50 rounded-lg shadow border border-indigo-100 p-6">
                 <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-3 flex-wrap">
                         <h3 className="text-xl font-bold text-indigo-900">Grand Total (All Users)</h3>
                         {validHistoryOptions.length > 0 && (
-                            <div className="flex items-center gap-2 bg-white border border-indigo-200 rounded-md p-1.5 shadow-sm">
+                            <div className="flex items-center gap-2 bg-white border border-indigo-200 rounded-md p-1.5 shadow-sm print:hidden">
                                 <span className="text-lg">⏳</span>
                                 <div className="flex flex-col">
                                     <label className="text-[9px] font-bold text-indigo-800 uppercase tracking-wider leading-none mb-0.5">Time Machine</label>
@@ -196,7 +202,7 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
                             </div>
                         )}
                         {allHistorySorted.length > 0 && (
-                            <div className="flex items-center gap-2 bg-white border border-emerald-200 rounded-md p-1.5 shadow-sm">
+                            <div className="flex items-center gap-2 bg-white border border-emerald-200 rounded-md p-1.5 shadow-sm print:hidden">
                                 <span className="text-lg">📊</span>
                                 <div className="flex flex-col">
                                     <label className="text-[9px] font-bold text-emerald-700 uppercase tracking-wider leading-none mb-0.5">Compare With Today</label>
@@ -216,7 +222,13 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
                             </div>
                         )}
                     </div>
-                    <div className="space-x-2">
+                    <div className="space-x-2 flex items-center print:hidden">
+                        <button
+                            onClick={() => window.print()}
+                            className="bg-gray-100 text-gray-700 font-medium px-3 py-1 rounded border border-gray-300 hover:bg-gray-200 text-sm flex items-center gap-1 shadow-sm"
+                        >
+                            🖨️ Export PDF
+                        </button>
                         <button
                             onClick={() => setShowHistoryForm(!showHistoryForm)}
                             className="bg-white text-indigo-600 px-3 py-1 rounded border border-indigo-200 hover:bg-indigo-50 text-sm font-medium"
@@ -299,7 +311,7 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
             </div>
 
             {/* Customer Dropdown */}
-            <div className="flex justify-start px-2 py-4">
+            <div className="flex justify-start px-2 py-4 print:hidden">
                 <div className="inline-flex items-center gap-4 bg-white px-6 py-3 rounded-xl shadow-md border border-gray-100 ring-1 ring-gray-200/50">
                     <label htmlFor="customer-select" className="text-lg font-semibold text-gray-600 tracking-wide">
                         View Portfolio For:

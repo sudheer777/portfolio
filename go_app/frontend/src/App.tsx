@@ -47,7 +47,7 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-100 py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        <header className="mb-10 flex justify-between items-center px-4">
+        <header className="mb-10 flex justify-between items-center px-4 print:hidden">
           <div>
             <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight sm:text-5xl">
               My Portfolio
@@ -73,7 +73,7 @@ function App() {
         </header>
 
         {/* Navigation Tabs */}
-        <div className="flex space-x-4 px-4 mb-6 border-b border-gray-200 overflow-x-auto">
+        <div className="flex space-x-4 px-4 mb-6 border-b border-gray-200 overflow-x-auto print:hidden">
           <button
             onClick={() => setView('dashboard')}
             className={`py-2 px-4 font-medium transition-colors duration-200 border-b-2 whitespace-nowrap ${view === 'dashboard'
