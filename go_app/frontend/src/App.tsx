@@ -100,33 +100,7 @@ function App() {
           >
             Dashboard
           </button>
-          <button
-            onClick={() => setView('rates')}
-            className={`py-2 px-4 font-medium transition-colors duration-200 border-b-2 whitespace-nowrap ${view === 'rates'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-          >
-            Interest Rates
-          </button>
-          <button
-            onClick={() => setView('epf')}
-            className={`py-2 px-4 font-medium transition-colors duration-200 border-b-2 whitespace-nowrap ${view === 'epf'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-          >
-            EPF Calculator
-          </button>
-          <button
-            onClick={() => setView('ppf')}
-            className={`py-2 px-4 font-medium transition-colors duration-200 border-b-2 whitespace-nowrap ${view === 'ppf'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-          >
-            PPF Calculator
-          </button>
+
           <button
             onClick={() => setView('rebalancer')}
             className={`py-2 px-4 font-medium transition-colors duration-200 border-b-2 whitespace-nowrap ${view === 'rebalancer'
@@ -164,6 +138,24 @@ function App() {
             What-If Scenarios
           </button>
           <button
+            onClick={() => setView('epf')}
+            className={`py-2 px-4 font-medium transition-colors duration-200 border-b-2 whitespace-nowrap ${view === 'epf'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+          >
+            EPF Calculator
+          </button>
+          <button
+            onClick={() => setView('ppf')}
+            className={`py-2 px-4 font-medium transition-colors duration-200 border-b-2 whitespace-nowrap ${view === 'ppf'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+          >
+            PPF Calculator
+          </button>
+          <button
             onClick={() => setView('privacy')}
             className={`py-2 px-4 font-medium transition-colors duration-200 border-b-2 whitespace-nowrap ${view === 'privacy'
               ? 'border-indigo-600 text-indigo-600'
@@ -171,6 +163,15 @@ function App() {
               }`}
           >
             🔐 Privacy & BYODB
+          </button>
+          <button
+            onClick={() => setView('rates')}
+            className={`py-2 px-4 font-medium transition-colors duration-200 border-b-2 whitespace-nowrap ${view === 'rates'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+          >
+            Interest Rates
           </button>
         </div>
 

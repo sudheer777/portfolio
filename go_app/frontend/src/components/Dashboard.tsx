@@ -8,6 +8,8 @@ import { HistoryList } from "./HistoryList";
 import { HistoryAnalysis, type Milestone } from "./HistoryAnalysis";
 import { FICrossoverCard } from "./FICrossoverCard";
 import { SnapshotComparator } from "./SnapshotComparator";
+import CareerCalculator from "./CareerCalculator";
+import ExpenseFICalculator from "./ExpenseFICalculator";
 import type { PortfolioSummary, UserSummary, Amount, PortfolioHistory } from "../types";
 
 export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () => void }> = ({ refreshKey, onTransactionChange }) => {
@@ -343,6 +345,21 @@ export const Dashboard: React.FC<{ refreshKey: number; onTransactionChange: () =
                     onUpdate={onTransactionChange}
                 />
             )}
+
+            {/* Print-only sections for enhanced PDF export */}
+            <div className="hidden print:block break-before-page mt-8 print:mt-12">
+                <div className="text-center border-b-2 border-indigo-200 pb-4 mb-6">
+                    <h2 className="text-2xl font-extrabold text-gray-900">Career Growth & Income Analysis</h2>
+                </div>
+                <CareerCalculator />
+            </div>
+            
+            <div className="hidden print:block break-before-page mt-8 print:mt-12">
+                <div className="text-center border-b-2 border-indigo-200 pb-4 mb-6">
+                    <h2 className="text-2xl font-extrabold text-gray-900">FIRE & Retirement Simulation</h2>
+                </div>
+                <ExpenseFICalculator />
+            </div>
         </div>
     );
 };

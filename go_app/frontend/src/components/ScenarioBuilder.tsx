@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '../api';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import type { PortfolioSummary } from '../types';
 
 type Scenario = {
     id: string;
@@ -14,6 +15,8 @@ type Scenario = {
 export const ScenarioBuilder: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [currentCorpus, setCurrentCorpus] = useState(0);
+    const [fullPortfolio, setFullPortfolio] = useState<PortfolioSummary | null>(null);
+    const [shockPercents, setShockPercents] = useState<Record<string, string>>({});
     const [stepUpMonth, setStepUpMonth] = useState(1);
 
     // Core state array holding dynamic scenarios
@@ -30,6 +33,7 @@ export const ScenarioBuilder: React.FC = () => {
         // Fetch Live Total Corpus
         api.getPortfolio().then(port => {
             if (port) {
+                setFullPortfolio(port);
                 setCurrentCorpus(port.total.final_amount);
             }
         }).catch(() => { });
@@ -62,8 +66,8 @@ export const ScenarioBuilder: React.FC = () => {
                         const newScenarios = [...current];
                         // Auto-seed baseline metrics into all default scenarios based on what they were currently set to do
                         newScenarios[0] = { ...newScenarios[0], sip: savedSip, stepUpPct: savedStepUp, expectedReturnPct: baseReturn };
-                        newScenarios[1] = { ...newScenarios[1], sip: savedSip * 1.2, stepUpPct: savedStepUp + 2, expectedReturnPct: baseReturn + 2 };
-                        newScenarios[2] = { ...newScenarios[2], sip: savedSip * 0.8, stepUpPct: savedStepUp - 2, expectedReturnPct: baseReturn - 2 };
+                        newScenarios[1] = { ...newScenarios[1], sip: savedSip, stepUpPct: savedStepUp, expectedReturnPct: 12 };
+                        newScenarios[2] = { ...newScenarios[2], sip: savedSip, stepUpPct: savedStepUp, expectedReturnPct: 8 };
                         return newScenarios;
                     });
                 } catch (e) {
@@ -162,6 +166,35 @@ export const ScenarioBuilder: React.FC = () => {
 
         return { chartData: data, finalValues: finalVals };
     }, [scenarios, currentCorpus, stepUpMonth, simulationYears]);
+
+    const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7f50', '#00C49F', '#FFBB28'];
+
+    const formatCurrencyStandard = (val: number) => val.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
+
+    const shockData = useMemo(() => {
+        if (!fullPortfolio || !fullPortfolio.asset_types) return null;
+        const currentData = Object.entries(fullPortfolio.asset_types).map(([type, amount]) => ({
+            name: type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' '),
+            rawName: type,
+            value: amount.final_amount,
+        })).filter(d => d.value > 0);
+
+        const currentTotal = currentData.reduce((sum, d) => sum + d.value, 0);
+
+        const afterData = currentData.map(d => {
+            const pct = parseFloat(shockPercents[d.rawName]) || 0;
+            const shockMultiplier = 1 + (pct / 100);
+            return {
+                name: d.name,
+                rawName: d.rawName,
+                value: d.value * shockMultiplier
+            };
+        });
+
+        const afterTotal = afterData.reduce((sum, d) => sum + d.value, 0);
+
+        return { currentData, currentTotal, afterData, afterTotal };
+    }, [fullPortfolio, shockPercents]);
 
     if (loading) return <div className="text-center p-8 text-gray-500">Loading metrics...</div>;
 
@@ -292,6 +325,142 @@ export const ScenarioBuilder: React.FC = () => {
                     </div>
                 </div>
 
+                {/* Asset Shock Simulator */}
+                {shockData && (
+                    <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-inner mt-8">
+                        <h3 className="font-bold text-gray-700 mb-2 text-center text-lg">Instant Asset Shock Simulator</h3>
+                        <p className="text-sm text-gray-500 text-center mb-6">See how a sudden jump or crash in a specific asset class instantly alters your Portfolio Asset Allocation and Total Net Worth.</p>
+                        
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-8 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            {shockData.currentData.map((d: any) => {
+                                const val = shockPercents[d.rawName] || '';
+                                const parsed = parseFloat(val);
+                                const isPositive = parsed > 0;
+                                const isNegative = parsed < 0;
+                                return (
+                                    <div key={d.rawName} className="flex flex-col gap-1">
+                                        <label className="text-xs font-semibold text-gray-600 truncate bg-white px-1 -mb-2 z-10 w-max ml-2">{d.name} Shock (%)</label>
+                                        <div className="relative">
+                                            <input 
+                                                type="number"
+                                                value={val}
+                                                placeholder="0"
+                                                onChange={(e) => setShockPercents({ ...shockPercents, [d.rawName]: e.target.value })}
+                                                className={`w-full border rounded-md px-3 pt-3 pb-2 text-sm font-bold focus:ring-indigo-500 focus:border-indigo-500 shadow-sm ${isPositive ? 'text-green-600 border-green-300' : isNegative ? 'text-red-600 border-red-300' : 'text-gray-700 border-gray-300'}`}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* Before Chart */}
+                            <div className="flex flex-col items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                <h4 className="font-semibold text-gray-700 text-center">Before Shock</h4>
+                                <div className="text-xl font-bold text-indigo-900 mt-1">{formatCurrencyStandard(shockData.currentTotal)}</div>
+                                <div className="w-full h-[250px] mt-4">
+                                    <ResponsiveContainer>
+                                        <PieChart>
+                                            <Pie
+                                                data={shockData.currentData}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={50}
+                                                outerRadius={80}
+                                                fill="#8884d8"
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                            >
+                                                {shockData.currentData.map((_: any, index: number) => (
+                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip formatter={(value: any) => formatCurrencyStandard(Number(value))} />
+                                            <Legend />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+
+                            {/* After Chart */}
+                            <div className="flex flex-col items-center p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                                <h4 className="font-semibold text-indigo-900 text-center">After Shock</h4>
+                                <div className="text-xl font-bold text-indigo-900 mt-1 flex items-center gap-2">
+                                    {formatCurrencyStandard(shockData.afterTotal)}
+                                    {shockData.afterTotal !== shockData.currentTotal && (
+                                        <span className={`text-sm ${shockData.afterTotal > shockData.currentTotal ? 'text-green-600' : 'text-red-600'}`}>
+                                            ({shockData.afterTotal > shockData.currentTotal ? '+' : '-'}{formatCurrencyStandard(Math.abs(shockData.afterTotal - shockData.currentTotal))})
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="w-full h-[250px] mt-4">
+                                    <ResponsiveContainer>
+                                        <PieChart>
+                                            <Pie
+                                                data={shockData.afterData}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={50}
+                                                outerRadius={80}
+                                                fill="#82ca9d"
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                            >
+                                                {shockData.afterData.map((_: any, index: number) => (
+                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip formatter={(value: any) => formatCurrencyStandard(Number(value))} />
+                                            <Legend />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Summary Table */}
+                        <div className="mt-8 overflow-x-auto">
+                            <table className="min-w-full text-sm text-center">
+                                <thead className="bg-gray-100 text-gray-600 font-semibold">
+                                    <tr>
+                                        <th className="p-2 border-b text-left">Asset Class</th>
+                                        <th className="p-2 border-b">Before Value</th>
+                                        <th className="p-2 border-b">Before %</th>
+                                        <th className="p-2 border-b bg-indigo-100">After Value</th>
+                                        <th className="p-2 border-b bg-indigo-100">After %</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {shockData.currentData.map((d: any, i: number) => {
+                                        const afterD = shockData.afterData[i];
+                                        const currentPct = ((d.value / shockData.currentTotal) * 100).toFixed(1);
+                                        const afterPct = ((afterD.value / shockData.afterTotal) * 100).toFixed(1);
+                                        const activeShock = parseFloat(shockPercents[d.rawName]) || 0;
+                                        const isTarget = activeShock !== 0;
+                                        
+                                        return (
+                                            <tr key={d.rawName} className={`border-b ${isTarget ? 'bg-yellow-50' : 'hover:bg-gray-50'}`}>
+                                                <td className="p-2 text-left font-medium">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: COLORS[i % COLORS.length] }}></span>
+                                                        {d.name} {isTarget && <span className="text-xs bg-yellow-200 text-yellow-800 px-1 rounded ml-1">Target</span>}
+                                                    </div>
+                                                </td>
+                                                <td className="p-2 text-gray-600">{formatCurrencyStandard(d.value)}</td>
+                                                <td className="p-2 font-mono text-xs">{currentPct}%</td>
+                                                <td className={`p-2 font-bold ${isTarget ? (activeShock > 0 ? 'text-green-600' : 'text-red-600') : 'text-gray-900'}`}>
+                                                    {formatCurrencyStandard(afterD.value)}
+                                                </td>
+                                                <td className="p-2 font-mono text-xs font-semibold">{afterPct}%</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -93,6 +93,7 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
     const [stepUpMonth, setStepUpMonth] = useState<string>("1");
     const [months, setMonths] = useState<string>("12");
     const [customAdditions, setCustomAdditions] = useState<Record<string, string>>({});
+    const [lockedAssets, setLockedAssets] = useState<Record<string, boolean>>({});
 
     // Track if user has manually edited the SIP so we don't overwrite it later
     const [isSipModified, setIsSipModified] = useState(false);
@@ -129,6 +130,7 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
                     if (config.targets) setTargets(config.targets);
                     if (config.months) setMonths(config.months);
                     if (config.customAdditions) setCustomAdditions(config.customAdditions);
+                    if (config.lockedAssets) setLockedAssets(config.lockedAssets);
                     if (config.monthlyAddition) {
                         setMonthlyAddition(config.monthlyAddition);
                         setIsSipModified(true); // Prevent the useEffect from overwriting with the computed avg
@@ -198,16 +200,33 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
 
         // 4. Calculate Suggested Additions
         const suggestions: Record<string, number> = {};
+
+        let fixedSipTotal = 0;
+        let nonFixedShortfall = 0;
+        let nonFixedTargetPct = 0;
+        const nonFixedKeys: string[] = [];
+
         allAssetKeys.forEach(key => {
-            if (totalTargetPct === 0) {
-                // Prevent / 0
-                suggestions[key] = 0;
-            } else if (totalShortfall > 0) {
-                // Distribute SIP proportionally based on magnitude of shortfall
-                suggestions[key] = sip * (shortfalls[key] / totalShortfall);
+            if (lockedAssets[key]) {
+                const fixedVal = parseFloat(customAdditions[key]) || 0;
+                fixedSipTotal += fixedVal;
+                suggestions[key] = fixedVal;
             } else {
-                // If perfect already (No shortfalls at all), just distribute by target %
-                suggestions[key] = sip * (targetPct[key] / 100);
+                nonFixedKeys.push(key);
+                nonFixedShortfall += shortfalls[key];
+                nonFixedTargetPct += targetPct[key];
+            }
+        });
+
+        const availableDynamicSip = Math.max(0, sip - fixedSipTotal);
+
+        nonFixedKeys.forEach(key => {
+            if (nonFixedTargetPct === 0) {
+                suggestions[key] = 0;
+            } else if (nonFixedShortfall > 0) {
+                suggestions[key] = availableDynamicSip * (shortfalls[key] / nonFixedShortfall);
+            } else {
+                suggestions[key] = availableDynamicSip * (targetPct[key] / nonFixedTargetPct);
             }
         });
 
@@ -223,7 +242,7 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
             };
         }).sort((a, b) => b.targetPct - a.targetPct); // Sort by highest target first
 
-    }, [data, monthlyAddition, targets]);
+    }, [data, monthlyAddition, targets, customAdditions, lockedAssets]);
 
     const nMonths = parseInt(months) || 0;
 
@@ -231,8 +250,7 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
     let totalProjected = 0;
     let totalEffectiveAddition = 0;
     const projectedData = rebalanceData.map(item => {
-        const custom = customAdditions[item.key];
-        const effectiveAddition = (custom !== undefined && custom !== "") ? parseFloat(custom) || 0 : item.suggestedAddition;
+        const effectiveAddition = lockedAssets[item.key] ? (parseFloat(customAdditions[item.key]) || 0) : item.suggestedAddition;
 
         // Compound growth formula: FV = PV*(1+r)^n + PMT*((1+r)^n - 1)/r
         // where r = monthly return rate, n = number of months
@@ -482,7 +500,7 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
                         <button
                             onClick={async () => {
                                 try {
-                                    const config = JSON.stringify({ targets, months, customAdditions, monthlyAddition, yearlyIncreasePct, stepUpMonth, expectedReturns });
+                                    const config = JSON.stringify({ targets, months, customAdditions, lockedAssets, monthlyAddition, yearlyIncreasePct, stepUpMonth, expectedReturns });
                                     await api.saveRebalancerConfig(config);
                                     setSaveStatus('Saved!');
                                     setTimeout(() => setSaveStatus(''), 3000);
@@ -616,9 +634,9 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
                     <div className="bg-white p-4 rounded border border-indigo-200 flex flex-col">
                         <div className="flex justify-between items-center mb-4 border-b pb-2">
                             <h5 className="font-semibold text-gray-700">Action Plan & Projection</h5>
-                            {(Object.keys(customAdditions).length > 0) && (
+                            {(Object.keys(customAdditions).length > 0 || Object.keys(lockedAssets).length > 0) && (
                                 <button
-                                    onClick={() => setCustomAdditions({})}
+                                    onClick={() => { setCustomAdditions({}); setLockedAssets({}); }}
                                     className="text-xs text-indigo-600 hover:text-indigo-800 underline"
                                 >
                                     Reset to Suggested
@@ -640,7 +658,7 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {finalProjectedData.map(row => {
                                         const projPct = totalProjected > 0 ? (row.projectedValue / totalProjected) * 100 : 0;
-                                        const isCustom = customAdditions[row.key] !== undefined && customAdditions[row.key] !== "";
+                                        const isCustom = lockedAssets[row.key];
 
                                         // Format Time
                                         let etaDisplay = "-";
@@ -670,12 +688,34 @@ export const AssetRebalancer: React.FC<Props> = ({ data: propData, defaultMonthl
                                                 </td>
                                                 <td className="px-3 py-2 whitespace-nowrap text-right align-middle bg-indigo-50/30">
                                                     <div className="flex items-center justify-end">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const isNowLocked = !lockedAssets[row.key];
+                                                                setLockedAssets(prev => ({ ...prev, [row.key]: isNowLocked }));
+
+                                                                if (isNowLocked && !customAdditions[row.key]) {
+                                                                    setCustomAdditions(c => ({ ...c, [row.key]: Math.round(row.suggestedAddition).toString() }));
+                                                                } else if (!isNowLocked) {
+                                                                    setCustomAdditions(c => { const c2 = { ...c }; delete c2[row.key]; return c2; });
+                                                                }
+                                                            }}
+                                                            className={`mr-2 flex-shrink-0 transition-colors ${lockedAssets[row.key] ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                                            title={lockedAssets[row.key] ? "Unlock dynamic calculation" : "Lock this SIP amount"}
+                                                        >
+                                                            {lockedAssets[row.key] ? '🔒' : '🔓'}
+                                                        </button>
                                                         <span className="text-gray-500 mr-1">₹</span>
                                                         <input
                                                             type="number"
-                                                            value={customAdditions[row.key] ?? Math.round(row.suggestedAddition)}
-                                                            onChange={(e) => handleCustomAdditionChange(row.key, e.target.value)}
-                                                            className={`w-28 border rounded px-2 py-1 text-right text-sm focus:ring-1 focus:ring-indigo-500 ${isCustom ? 'border-indigo-400 bg-indigo-50 font-bold text-indigo-900' : 'border-gray-200 bg-white text-gray-700'}`}
+                                                            value={lockedAssets[row.key] ? (customAdditions[row.key] ?? '') : Math.round(row.suggestedAddition)}
+                                                            onChange={(e) => {
+                                                                if (!lockedAssets[row.key]) {
+                                                                    setLockedAssets(prev => ({ ...prev, [row.key]: true }));
+                                                                }
+                                                                handleCustomAdditionChange(row.key, e.target.value);
+                                                            }}
+                                                            className={`w-28 border rounded px-2 py-1 text-right text-sm focus:ring-1 focus:ring-indigo-500 ${isCustom ? 'border-indigo-400 bg-indigo-50 font-bold text-indigo-900' : 'border-transparent bg-transparent text-gray-700'}`}
                                                         />
                                                     </div>
                                                 </td>
