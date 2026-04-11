@@ -21,10 +21,21 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [view, setView] = useState<'dashboard' | 'rates' | 'epf' | 'ppf' | 'rebalancer' | 'career' | 'fire' | 'scenarios' | 'privacy'>('dashboard');
 
+  const [fontScale, setFontScale] = useState(parseInt(localStorage.getItem('appFontScale') || '100', 10));
+
   useEffect(() => {
     setIsAuthenticated(api.checkAuth());
     setLoading(false);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${fontScale}%`;
+    localStorage.setItem('appFontScale', fontScale.toString());
+  }, [fontScale]);
+
+  const modifyFontScale = (delta: number) => {
+    setFontScale(prev => Math.max(50, Math.min(200, prev + delta)));
+  };
 
   const handleTransactionAdded = () => {
     setRefreshKey(k => k + 1);
@@ -57,7 +68,12 @@ function App() {
               Track your investments and interest growth
             </p>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-4 items-center">
+            <div className="hidden sm:flex bg-white rounded shadow text-sm font-medium border border-gray-200">
+              <button onClick={() => modifyFontScale(-10)} className="px-3 py-1.5 border-r hover:bg-gray-100" title="Decrease font size">A-</button>
+              <button onClick={() => setFontScale(100)} className="px-3 py-1.5 border-r hover:bg-gray-100" title="Reset font size">{fontScale}%</button>
+              <button onClick={() => modifyFontScale(10)} className="px-3 py-1.5 hover:bg-gray-100" title="Increase font size">A+</button>
+            </div>
             <button
               onClick={() => setIsModalOpen(true)}
               className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded shadow transition"

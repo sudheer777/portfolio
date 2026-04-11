@@ -61,6 +61,15 @@ export default function CareerCalculator() {
     // Quick Simulator state
     const [quickCtc, setQuickCtc] = useState('');
 
+    // Hike Comparator states
+    const [hikeA, setHikeA] = useState('10');
+    const [hikeB, setHikeB] = useState('15');
+    const [compareYears, setCompareYears] = useState('5');
+
+    // Historical What-If states
+    const [selectedHistId, setSelectedHistId] = useState('');
+    const [hypoHistHike, setHypoHistHike] = useState('10');
+
     const loadData = async () => {
         setLoading(true);
         try {
@@ -459,19 +468,19 @@ export default function CareerCalculator() {
                                             <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-1">True Working Rate</p>
                                             <div className="grid grid-cols-2 gap-1 mt-1 text-xs">
                                                 <div>
-                                                    <p className="text-[9px] text-indigo-400">Net/Day</p>
+                                                    <p className="text-[10px] text-indigo-400">Net/Day</p>
                                                     <p className="font-bold text-indigo-900">{formatCurrency((sim.monthlyInHand * 12) / 251)}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-[9px] text-indigo-400">Gross/Day</p>
+                                                    <p className="text-[10px] text-indigo-400">Gross/Day</p>
                                                     <p className="font-bold text-indigo-900">{formatCurrency(ctcVal / 251)}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-[9px] text-indigo-400">Net/Hour</p>
+                                                    <p className="text-[10px] text-indigo-400">Net/Hour</p>
                                                     <p className="font-bold text-indigo-900">{formatCurrency((sim.monthlyInHand * 12) / 2008)}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-[9px] text-indigo-400">Gross/Hour</p>
+                                                    <p className="text-[10px] text-indigo-400">Gross/Hour</p>
                                                     <p className="font-bold text-indigo-900">{formatCurrency(ctcVal / 2008)}</p>
                                                 </div>
                                             </div>
@@ -602,8 +611,8 @@ export default function CareerCalculator() {
                                                     <div className="text-[10px] text-gray-400 font-normal mt-0.5">Gross: {formatCurrency(pd.gratuity)}</div>
                                                     {!pd.isFirst && (
                                                         <>
-                                                            <div className="text-[9px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.gratuityNetIncrease)} Net Incr</div>
-                                                            <div className="text-[9px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.gratuityIncrease)} Gross Incr</div>
+                                                            <div className="text-[10px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.gratuityNetIncrease)} Net Incr</div>
+                                                            <div className="text-[10px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.gratuityIncrease)} Gross Incr</div>
                                                         </>
                                                     )}
                                                 </td>
@@ -612,8 +621,8 @@ export default function CareerCalculator() {
                                                     <div className="text-[10px] text-gray-400 font-normal mt-0.5">Gross: {formatCurrency(pd.leave)}</div>
                                                     {!pd.isFirst && (
                                                         <>
-                                                            <div className="text-[9px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.leaveNetIncrease)} Net Incr</div>
-                                                            <div className="text-[9px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.leaveIncrease)} Gross Incr</div>
+                                                            <div className="text-[10px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.leaveNetIncrease)} Net Incr</div>
+                                                            <div className="text-[10px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.leaveIncrease)} Gross Incr</div>
                                                         </>
                                                     )}
                                                 </td>
@@ -621,7 +630,7 @@ export default function CareerCalculator() {
                                                     {!pd.isFirst ? (
                                                         <>
                                                             <span className="text-green-700">+ {formatCurrency(pd.totalGrossIncrease)}</span>
-                                                            <div className="text-[9px] text-gray-500 font-normal mt-1 whitespace-nowrap">
+                                                            <div className="text-[10px] text-gray-500 font-normal mt-1 whitespace-nowrap">
                                                                 <div>CTC <span className="text-green-600 font-medium">+{formatCurrency(pd.grossIncrease)}</span></div>
                                                                 <div>Grat <span className="text-green-600 font-medium">+{formatCurrency(pd.gratuityIncrease)}</span></div>
                                                                 <div>Leave <span className="text-green-600 font-medium">+{formatCurrency(pd.leaveIncrease)}</span></div>
@@ -633,7 +642,7 @@ export default function CareerCalculator() {
                                                     {!pd.isFirst ? (
                                                         <>
                                                             <span className="text-green-700">+ {formatCurrency(pd.totalNetIncrease)}</span>
-                                                            <div className="text-[9px] text-gray-500 font-normal mt-1 whitespace-nowrap">
+                                                            <div className="text-[10px] text-gray-500 font-normal mt-1 whitespace-nowrap">
                                                                 <div>Salary (Yr) <span className="text-green-600 font-medium">+{formatCurrency(pd.inHandIncrease * 12)}</span></div>
                                                                 <div>Grat <span className="text-green-600 font-medium">+{formatCurrency(pd.gratuityNetIncrease)}</span></div>
                                                                 <div>Leave <span className="text-green-600 font-medium">+{formatCurrency(pd.leaveNetIncrease)}</span></div>
@@ -643,6 +652,152 @@ export default function CareerCalculator() {
                                                 </td>
                                             </tr>
                                         ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* 3.5 Hike Comparator */}
+                        <div className="bg-white rounded-lg shadow p-6 border-t-4 border-purple-500">
+                            <h3 className="text-xl font-bold border-b pb-2 mb-4 text-gray-800">Hike % Comparator</h3>
+                            <div className="flex flex-wrap gap-4 mb-4">
+                                <div>
+                                    <label className="text-xs text-gray-500 block">Scenario A Hike (%)</label>
+                                    <input type="number" value={hikeA} onChange={e => setHikeA(e.target.value)} className="w-full p-2 border rounded border-gray-300 focus:border-purple-500 focus:ring-purple-500" />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 block">Scenario B Hike (%)</label>
+                                    <input type="number" value={hikeB} onChange={e => setHikeB(e.target.value)} className="w-full p-2 border rounded border-gray-300 focus:border-purple-500 focus:ring-purple-500" />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 block">Years to Compare</label>
+                                    <input type="number" value={compareYears} onChange={e => setCompareYears(e.target.value)} className="w-full p-2 border rounded border-gray-300 focus:border-purple-500 focus:ring-purple-500" min="1" max="20" />
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full text-sm text-left">
+                                    <thead className="bg-gray-100 text-gray-600">
+                                        <tr>
+                                            <th className="p-2">Timeline</th>
+                                            <th className="p-2 border-l border-indigo-100 bg-indigo-50/30">Scenario A ({hikeA}%)</th>
+                                            <th className="p-2 border-l border-green-100 bg-green-50/30">Scenario B ({hikeB}%)</th>
+                                            <th className="p-2 border-l border-purple-100 bg-purple-50">Total Gross Diff (B-A)</th>
+                                            <th className="p-2 border-l border-orange-100 bg-orange-50">Total Net Diff (B-A)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(() => {
+                                            const comparatorData = [];
+                                            let simCtcA = lastActCtc || currentCtcVal;
+                                            let simCtcB = lastActCtc || currentCtcVal;
+                                            let cA = parseFloat(hikeA) || 0;
+                                            let cB = parseFloat(hikeB) || 0;
+                                            let cYears = parseInt(compareYears) || 5;
+                                            let yosA = yearsOfService;
+                                            let yosB = yearsOfService;
+
+                                            for (let i = 1; i <= cYears; i++) {
+                                                simCtcA = simCtcA * (1 + (cA / 100));
+                                                simCtcB = simCtcB * (1 + (cB / 100));
+                                                yosA += 1;
+                                                yosB += 1;
+
+                                                const taxA = calculateTaxesNewRegime(simCtcA);
+                                                const taxB = calculateTaxesNewRegime(simCtcB);
+
+                                                // Gross components
+                                                const gratA = yosA >= 4.8 ? Math.round((simCtcA / 24) * (15 / 26) * Math.round(yosA)) : 0;
+                                                const gratB = yosB >= 4.8 ? Math.round((simCtcB / 24) * (15 / 26) * Math.round(yosB)) : 0;
+
+                                                const leaveA = ((simCtcA / 24) / 30) * (parseFloat(accruedLeaves) || 0);
+                                                const leaveB = ((simCtcB / 24) / 30) * (parseFloat(accruedLeaves) || 0);
+
+                                                // Net components
+                                                const taxWithGratA = calculateTaxOnLumpSum(taxA.taxableIncome, Math.max(0, gratA - 2000000));
+                                                const inHandGratA = gratA - (taxWithGratA - taxA.totalTax);
+
+                                                const taxWithGratB = calculateTaxOnLumpSum(taxB.taxableIncome, Math.max(0, gratB - 2000000));
+                                                const inHandGratB = gratB - (taxWithGratB - taxB.totalTax);
+
+                                                const taxWithLeaveA = calculateTaxOnLumpSum(taxA.taxableIncome, leaveA);
+                                                const inHandLeaveA = leaveA - (taxWithLeaveA - taxA.totalTax);
+
+                                                const taxWithLeaveB = calculateTaxOnLumpSum(taxB.taxableIncome, leaveB);
+                                                const inHandLeaveB = leaveB - (taxWithLeaveB - taxB.totalTax);
+
+                                                comparatorData.push({
+                                                    year: `+${i} Yr`,
+                                                    ctcA: simCtcA,
+                                                    ctcB: simCtcB,
+                                                    inHandA: taxA.monthlyInHand,
+                                                    inHandB: taxB.monthlyInHand,
+                                                    gratA, gratB, inHandGratA, inHandGratB,
+                                                    leaveA, leaveB, inHandLeaveA, inHandLeaveB
+                                                });
+                                            }
+
+                                            return comparatorData.map((d, index) => {
+                                                const diffCtc = d.ctcB - d.ctcA;
+                                                const diffGrat = d.gratB - d.gratA;
+                                                const diffLeave = d.leaveB - d.leaveA;
+                                                const totalGrossDiff = diffCtc + diffGrat + diffLeave;
+
+                                                const inHandYearlyA = d.inHandA * 12;
+                                                const inHandYearlyB = d.inHandB * 12;
+                                                const diffInHandYearly = inHandYearlyB - inHandYearlyA;
+                                                const diffInHandGrat = d.inHandGratB - d.inHandGratA;
+                                                const diffInHandLeave = d.inHandLeaveB - d.inHandLeaveA;
+                                                const totalNetDiff = diffInHandYearly + diffInHandGrat + diffInHandLeave;
+
+                                                const isGrossBetter = totalGrossDiff >= 0;
+                                                const isNetBetter = totalNetDiff >= 0;
+
+                                                return (
+                                                    <tr key={index} className="border-b hover:bg-gray-50">
+                                                        <td className="p-2 font-medium text-gray-700">{d.year}</td>
+                                                        <td className="p-2 border-l border-indigo-100 bg-indigo-50/10">
+                                                            <div className="font-bold text-gray-800">{formatCurrency(d.ctcA)}</div>
+                                                            <div className="text-xs text-orange-600 mt-1">Net: {formatCurrency(d.inHandA)} /mo</div>
+                                                            <div className="text-[10px] text-gray-500 mt-0.5">Grat: {formatCurrency(d.gratA)} | Leave: {formatCurrency(d.leaveA)}</div>
+                                                        </td>
+                                                        <td className="p-2 border-l border-green-100 bg-green-50/10">
+                                                            <div className="font-bold text-gray-800">{formatCurrency(d.ctcB)}</div>
+                                                            <div className="text-xs text-orange-600 mt-1">Net: {formatCurrency(d.inHandB)} /mo</div>
+                                                            <div className="text-[10px] text-gray-500 mt-0.5">Grat: {formatCurrency(d.gratB)} | Leave: {formatCurrency(d.leaveB)}</div>
+                                                        </td>
+                                                        <td className={`p-2 border-l border-purple-100 bg-purple-50/30 ${isGrossBetter ? 'text-green-700' : 'text-red-600'}`}>
+                                                            <div className="font-bold">
+                                                                {isGrossBetter ? '+ ' : '- '}{formatCurrency(Math.abs(totalGrossDiff))}
+                                                            </div>
+                                                            <div className="text-[10px] text-gray-500 mt-1">
+                                                                CTC: {diffCtc >= 0 ? '+' : '-'}{formatCurrency(Math.abs(diffCtc))}
+                                                            </div>
+                                                            <div className="text-[10px] text-gray-500">
+                                                                Grat: {diffGrat >= 0 ? '+' : '-'}{formatCurrency(Math.abs(diffGrat))}
+                                                            </div>
+                                                            <div className="text-[10px] text-gray-500">
+                                                                Leave: {diffLeave >= 0 ? '+' : '-'}{formatCurrency(Math.abs(diffLeave))}
+                                                            </div>
+                                                        </td>
+                                                        <td className={`p-2 border-l border-orange-100 bg-orange-50/30 ${isNetBetter ? 'text-green-700' : 'text-red-600'}`}>
+                                                            <div className="font-bold">
+                                                                {isNetBetter ? '+ ' : '- '}{formatCurrency(Math.abs(totalNetDiff))}
+                                                            </div>
+                                                            <div className="text-[10px] text-gray-500 mt-1">
+                                                                Salary/yr: {diffInHandYearly >= 0 ? '+' : '-'}{formatCurrency(Math.abs(diffInHandYearly))}
+                                                            </div>
+                                                            <div className="text-[10px] text-gray-500">
+                                                                Grat: {diffInHandGrat >= 0 ? '+' : '-'}{formatCurrency(Math.abs(diffInHandGrat))}
+                                                            </div>
+                                                            <div className="text-[10px] text-gray-500">
+                                                                Leave: {diffInHandLeave >= 0 ? '+' : '-'}{formatCurrency(Math.abs(diffInHandLeave))}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            });
+                                        })()}
                                     </tbody>
                                 </table>
                             </div>
@@ -763,8 +918,8 @@ export default function CareerCalculator() {
                                                 <div className="text-[10px] text-gray-400 font-normal mt-0.5">Gross: {formatCurrency(pd.gratuity)}</div>
                                                 {!pd.isFirst && (
                                                     <>
-                                                        <div className="text-[9px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.gratuityNetIncrease)} Net Incr</div>
-                                                        <div className="text-[9px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.gratuityIncrease)} Gross Incr</div>
+                                                        <div className="text-[10px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.gratuityNetIncrease)} Net Incr</div>
+                                                        <div className="text-[10px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.gratuityIncrease)} Gross Incr</div>
                                                     </>
                                                 )}
                                             </td>
@@ -773,8 +928,8 @@ export default function CareerCalculator() {
                                                 <div className="text-[10px] text-gray-400 font-normal mt-0.5">Gross: {formatCurrency(pd.leave)}</div>
                                                 {!pd.isFirst && (
                                                     <>
-                                                        <div className="text-[9px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.leaveNetIncrease)} Net Incr</div>
-                                                        <div className="text-[9px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.leaveIncrease)} Gross Incr</div>
+                                                        <div className="text-[10px] text-green-700 font-semibold mt-0.5">▲ {formatCurrency(pd.leaveNetIncrease)} Net Incr</div>
+                                                        <div className="text-[10px] text-gray-500 font-normal mt-0.5">▲ {formatCurrency(pd.leaveIncrease)} Gross Incr</div>
                                                     </>
                                                 )}
                                             </td>
@@ -782,7 +937,7 @@ export default function CareerCalculator() {
                                                 {!pd.isFirst ? (
                                                     <>
                                                         <span className="text-green-700">+ {formatCurrency(pd.totalGrossIncrease)}</span>
-                                                        <div className="text-[9px] text-gray-500 font-normal mt-1 whitespace-nowrap">
+                                                        <div className="text-[10px] text-gray-500 font-normal mt-1 whitespace-nowrap">
                                                             <div>CTC <span className="text-green-600 font-medium">+{formatCurrency(pd.grossIncrease)}</span></div>
                                                             <div>Grat <span className="text-green-600 font-medium">+{formatCurrency(pd.gratuityIncrease)}</span></div>
                                                             <div>Leave <span className="text-green-600 font-medium">+{formatCurrency(pd.leaveIncrease)}</span></div>
@@ -794,7 +949,7 @@ export default function CareerCalculator() {
                                                 {!pd.isFirst ? (
                                                     <>
                                                         <span className="text-green-700">+ {formatCurrency(pd.totalNetIncrease)}</span>
-                                                        <div className="text-[9px] text-gray-500 font-normal mt-1 whitespace-nowrap">
+                                                        <div className="text-[10px] text-gray-500 font-normal mt-1 whitespace-nowrap">
                                                             <div>Salary (Yr) <span className="text-green-600 font-medium">+{formatCurrency(pd.inHandIncrease * 12)}</span></div>
                                                             <div>Grat <span className="text-green-600 font-medium">+{formatCurrency(pd.gratuityNetIncrease)}</span></div>
                                                             <div>Leave <span className="text-green-600 font-medium">+{formatCurrency(pd.leaveNetIncrease)}</span></div>
@@ -808,6 +963,112 @@ export default function CareerCalculator() {
                             </table>
                         </div>
                     </div>
+
+                    {/* 6. Historical What-If Analyzer */}
+                    {history.length > 1 && (
+                        <div className="mt-8 bg-white rounded-lg shadow p-6 border-t-4 border-pink-500">
+                            <h3 className="text-xl font-bold border-b pb-2 mb-4 text-gray-800">Historical Hike "What-If"</h3>
+                            <div className="flex flex-wrap gap-4 mb-6">
+                                <div className="w-full md:w-1/3">
+                                    <label className="text-xs text-gray-500 block">Select Historical Event</label>
+                                    <select value={selectedHistId} onChange={e => setSelectedHistId(e.target.value)} className="w-full p-2 border rounded border-gray-300 focus:border-pink-500 focus:ring-pink-500">
+                                        <option value="">-- Select an Event --</option>
+                                        {history.map((h, i) => i > 0 && (
+                                            <option key={h.id} value={h.id.toString()}>
+                                                {new Date(h.date).toLocaleDateString()} - {h.event_type} (Actual: {formatCurrency(h.ctc)})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {selectedHistId && (
+                                    <div className="w-full md:w-1/4">
+                                        <label className="text-xs text-gray-500 block">Hypothetical Hike (%)</label>
+                                        <input type="number" value={hypoHistHike} onChange={e => setHypoHistHike(e.target.value)} className="w-full p-2 border rounded border-gray-300 focus:border-pink-500 focus:ring-pink-500" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {selectedHistId && (() => {
+                                const histIdx = history.findIndex(h => h.id.toString() === selectedHistId);
+                                if (histIdx <= 0) return null;
+
+                                const baselineCtc = history[histIdx - 1].ctc;
+                                const actualEventCtc = history[histIdx].ctc;
+                                const eventDate = new Date(history[histIdx].date);
+                                const yosAtEvent = jobDetails ? (eventDate.getTime() - new Date(jobDetails.joining_date).getTime()) / (1000 * 60 * 60 * 24 * 365.25) : 0;
+
+                                // Actual Math
+                                const actualHikePct = ((actualEventCtc / baselineCtc) - 1) * 100;
+                                const actualTax = calculateTaxesNewRegime(actualEventCtc);
+                                const actualGrat = yosAtEvent >= 4.8 ? Math.round((actualEventCtc / 24) * (15 / 26) * Math.round(yosAtEvent)) : 0;
+                                const actualLeave = ((actualEventCtc / 24) / 30) * (parseFloat(accruedLeaves) || 0);
+
+                                // Hypothetical Math
+                                const hypoPct = parseFloat(hypoHistHike) || 0;
+                                const hypoCtc = baselineCtc * (1 + (hypoPct / 100));
+                                const hypoTax = calculateTaxesNewRegime(hypoCtc);
+                                const hypoGrat = yosAtEvent >= 4.8 ? Math.round((hypoCtc / 24) * (15 / 26) * Math.round(yosAtEvent)) : 0;
+                                const hypoLeave = ((hypoCtc / 24) / 30) * (parseFloat(accruedLeaves) || 0);
+
+                                const diffCtc = hypoCtc - actualEventCtc;
+                                const diffInHand = hypoTax.monthlyInHand - actualTax.monthlyInHand;
+                                const diffGrat = hypoGrat - actualGrat;
+                                const diffLeave = hypoLeave - actualLeave;
+                                const actualTotalGross = actualEventCtc + actualGrat + actualLeave;
+                                const hypoTotalGross = hypoCtc + hypoGrat + hypoLeave;
+                                const diffTotalGross = hypoTotalGross - actualTotalGross;
+
+                                return (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <div className="p-4 bg-gray-50 rounded border border-gray-200">
+                                            <p className="text-xs text-gray-500 uppercase font-semibold">Baseline (Before Event)</p>
+                                            <p className="text-xl font-bold text-gray-800 mt-1">{formatCurrency(baselineCtc)}</p>
+                                        </div>
+                                        <div className="p-4 bg-orange-50 rounded border border-orange-100">
+                                            <p className="text-xs text-orange-600 uppercase font-semibold">What Actually Happened</p>
+                                            <div className="mt-2">
+                                                <p className="text-2xl font-bold text-gray-900">{formatCurrency(actualEventCtc)}</p>
+                                                <p className="text-sm font-medium text-orange-700 mt-1">Hike Received: {actualHikePct.toFixed(2)}%</p>
+                                                <p className="text-xs text-gray-600 mt-1">In-Hand: {formatCurrency(actualTax.monthlyInHand)} /mo</p>
+                                                <p className="text-[10px] text-gray-500 mt-0.5">Gross Grat: {formatCurrency(actualGrat)} | Gross Leave: {formatCurrency(actualLeave)}</p>
+                                            </div>
+                                        </div>
+                                        <div className="p-4 bg-pink-50 rounded border border-pink-200 shadow-sm relative">
+                                            <p className="text-xs text-pink-600 uppercase font-semibold">Hypothetical Scenario</p>
+                                            <div className="mt-2">
+                                                <p className="text-2xl font-bold text-pink-900">{formatCurrency(hypoCtc)}</p>
+                                                <p className="text-sm font-medium text-pink-700 mt-1">If you got {hypoPct.toFixed(2)}%</p>
+                                                <p className="text-xs text-gray-600 mt-1">In-Hand: {formatCurrency(hypoTax.monthlyInHand)} /mo</p>
+                                                <p className="text-[10px] text-gray-500 mt-0.5">Gross Grat: {formatCurrency(hypoGrat)} | Gross Leave: {formatCurrency(hypoLeave)}</p>
+                                            </div>
+
+                                            <div className="mt-4 pt-3 border-t border-pink-200">
+                                                <p className="text-[10px] uppercase font-bold text-gray-500">Difference vs Reality</p>
+                                                <p className={`font-bold text-sm mt-1 ${diffTotalGross >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                    {diffTotalGross >= 0 ? '+' : ''}{formatCurrency(diffTotalGross)} Total Gross Diff
+                                                </p>
+                                                <p className={`font-semibold text-xs ${diffInHand >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                    {diffInHand >= 0 ? '+' : ''}{formatCurrency(diffInHand)} /mo Net In-Hand
+                                                </p>
+                                                <p className={`font-semibold text-[10px] ${diffInHand >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                    {diffInHand >= 0 ? '+' : ''}{formatCurrency(diffInHand * 12)} /yr Net In-Hand
+                                                </p>
+                                                <p className={`text-[10px] font-medium mt-1 ${diffCtc >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                    CTC Diff: {diffCtc >= 0 ? '+' : ''}{formatCurrency(diffCtc)} Gross
+                                                </p>
+                                                <p className={`text-[10px] font-medium ${diffGrat >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                    Gratuity Diff: {diffGrat >= 0 ? '+' : ''}{formatCurrency(diffGrat)} Gross
+                                                </p>
+                                                <p className={`text-[10px] font-medium ${diffLeave >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                                    Leave Diff: {diffLeave >= 0 ? '+' : ''}{formatCurrency(diffLeave)} Gross
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    )}
                 </>
             )}
         </div>
